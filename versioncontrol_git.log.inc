@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.log.inc,v 1.2 2008/01/26 23:38:06 boombatower Exp $
+// $Id: versioncontrol_git.log.inc,v 1.3 2008/01/26 23:41:46 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -164,7 +164,7 @@ function _versioncontrol_git_log_parse($repository, &$logs, &$file_revisions, $b
     $message = '';
     while (($line = $next($logs)) !== FALSE) {
       if (trim($line) != '') {
-        $message .= trim($line);
+        $message .= trim($line) ."\n";
       }
       else {
         break;
