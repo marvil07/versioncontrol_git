@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.log.inc,v 1.1 2008/01/26 21:31:44 boombatower Exp $
+// $Id: versioncontrol_git.log.inc,v 1.2 2008/01/26 23:38:06 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -19,35 +19,36 @@
 function _versioncontrol_git_log_update_repository(&$repository) {
   $root = escapeshellcmd($repository['root']);
 
-  // Prepare the "since when" time argument for Git, and remember the
-  // current time for the "updated" value that is stored later on. Fri Jan 25 18:00:44 2008 -0600
+  // Prepare the "since" time argument for Git, and remember the
+  // current time for the "updated" value that is stored later on.
   $date = ($repository['git_specific']['updated'] > 0)
           ? '--since="'. gmdate('D M j G:i:s Y O', $repository['git_specific']['updated']) .'"'
           : '';
   $date_updated = time();
 
+  $temp_file = '';
   $file_revisions = array();
-
-  // Call Git in order to get the raw logs.
-  $command = "cd $root;"."git log --numstat --summary --pretty=medium $date";
-  if (variable_get('versioncontrol_git_log_use_file', 1)) {
-    $temp_dir = variable_get('file_directory_temp', (PHP_OS == 'WINNT' ? 'c:\\windows\\temp' : '/tmp'));
-    $temp_file = $temp_dir .'/git-'. rand();
-    exec($command . " > $temp_file");
-    $logs = fopen($temp_file, 'r');
-  }
-  else {
-    exec($command, $logs); // TODO match above
-    reset($logs); // reset the array pointer, so that we can use next()
-  }
-  watchdog('special', $command);
-
-  // Parse the info from the raw output.
-  _versioncontrol_git_log_parse($repository, $logs, $file_revisions);
-
-  if (variable_get('versioncontrol_git_log_use_file', 1)) {
+  
+  // Get branches.
+  $logs = _versioncontrol_git_log_exec($root, 'git branch', $temp_file); // Query branches.
+  $branches = _versioncontrol_git_log_parse_branches($logs); // Parse output.
+  if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
     fclose($logs);
     unlink($temp_file);
+  }
+
+  // Call Git in order to get the raw logs for each branch.
+  foreach ($branches as $branch) {
+	  $command = "$context git log $branch --numstat --summary --pretty=medium $date";
+	  $logs = _versioncontrol_git_log_exec($root, $command, $temp_file);
+	  _versioncontrol_git_log_parse($repository, $logs, $file_revisions, $branch); // Parse the info from the raw output.
+	
+	  if (variable_get('versioncontrol_git_log_use_file', 1)) {
+	    fclose($logs);
+	    unlink($temp_file);
+	  }
+	  
+	  watchdog('special', $command);
   }
 
   // Having retrieved the file revisions, insert those into the database
@@ -60,6 +61,45 @@ function _versioncontrol_git_log_update_repository(&$repository) {
             SET updated = %d WHERE repo_id = %d',
             $repository['git_specific']['updated'], $repository['repo_id']);
   return TRUE;
+}
+
+/**
+ * Execute a Git command using the root context and the command to be executed.
+ * 
+ * @param string $root Root directory to execute command from.
+ * @param string $command Command to execute.
+ * @param reference $temp_file Reference to temporaray file.
+ * @return mixed Logged output from the command in either array of file pointer form.
+ */
+function _versioncontrol_git_log_exec($root, $command, &$temp_file) {
+	$exec = "cd $root; $command";
+	if (variable_get('versioncontrol_git_log_use_file', 1)) {
+    $temp_dir = variable_get('file_directory_temp', (PHP_OS == 'WINNT' ? 'c:\\windows\\temp' : '/tmp'));
+    $temp_file = $temp_dir .'/git-'. rand();
+    exec("$exec > $temp_file");
+    $logs = fopen($temp_file, 'r');
+  }
+  else {
+    $logs = array();
+    exec($exec, $logs);
+    reset($logs); // Reset the array pointer, so that we can use next().
+  }
+  return $logs;
+}
+
+function _versioncontrol_git_log_parse_branches(&$logs) {
+	// If the log was retrieved by taking the return value of exec(), we've
+  // got an array and navigate it via next(). If we stored the log in a
+  // temporary file, $logs is a file handle that we need to fgets() instead.
+  $next = is_array($logs) ? 'next' : 'fgets';
+  
+  $branches = array();
+  while (($line = $next($logs)) !== FALSE) {
+  	if (preg_match('/([^*\s]+)$/', $line, $matches)) { // Remove whitespace and ensure that the active module symbol '*' doesn't get included.
+  		$branches[] = $matches[1];
+  	}
+  }
+  return $branches;
 }
 
 /**
@@ -91,8 +131,9 @@ function _versioncontrol_git_log_update_repository(&$repository) {
  *   - message: The commit message (a string with possible line breaks).
  *   - branch: The branch that this file revision was committed to,
  *       as string containing the name of the branch.
+ * @param string $branch The curent branch.
  */
-function _versioncontrol_git_log_parse($repository, &$logs, &$file_revisions) {
+function _versioncontrol_git_log_parse($repository, &$logs, &$file_revisions, $branch) {
   // If the log was retrieved by taking the return value of exec(), we've
   // got an array and navigate it via next(). If we stored the log in a
   // temporary file, $logs is a file handle that we need to fgets() instead.
@@ -143,6 +184,7 @@ function _versioncontrol_git_log_parse($repository, &$logs, &$file_revisions) {
         $file_revision->lines_removed = $matches[2];
         $file_revision->path = '/'. $matches[3];
         $file_revision->action = VERSIONCONTROL_ACTION_MODIFIED;
+        $file_revision->branch = $branch;
         $revisions[] = $file_revision;
       }
       else {
@@ -291,7 +333,7 @@ function _versioncontrol_git_log_construct_commit($repository, $commit_actions, 
     }
     $username = $file_revision->username;
     $message = $file_revision->message;
-    $branch_name = 'master'; // $file_revision->branch;
+    $branch_name = $file_revision->branch;
   }
 
   // Get the branch id, and insert the branch into the database
