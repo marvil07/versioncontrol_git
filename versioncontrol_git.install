@@ -1,0 +1,139 @@
+<?php
+// $Id: versioncontrol_git.install,v 1.1 2008/01/26 21:31:44 boombatower Exp $
+/**
+ * @file
+ * Git backend for Version Control API - Provides Git commit information and
+ * account management as a pluggable backend.
+ *
+ * Copyright 2008 by Jimmy Berry ("boombatower", http://drupal.org/user/214218)
+ */
+
+/**
+ * Implementation of hook_install().
+ */
+function versioncontrol_git_install() {
+  switch ($GLOBALS['db_type']) {
+    case 'mysqli':
+    case 'mysql':
+      db_query("CREATE TABLE {versioncontrol_git_accounts} (
+        uid int unsigned NOT NULL default 0,
+        repo_id int unsigned NOT NULL default 0,
+        password varchar(64) NOT NULL default '',
+        PRIMARY KEY (uid, repo_id)
+      ) /*!40100 DEFAULT CHARACTER SET utf8 */");
+
+      db_query("CREATE TABLE {versioncontrol_git_repositories} (
+        repo_id int unsigned NOT NULL default 0,
+        modules varchar(255) NOT NULL default '',
+        update_method tinyint unsigned NOT NULL default 0,
+        updated int unsigned NOT NULL default 0,
+        run_as_user varchar(255) NOT NULL default '',
+        PRIMARY KEY (repo_id)
+      ) /*!40100 DEFAULT CHARACTER SET utf8 */");
+
+      db_query("CREATE TABLE {versioncontrol_git_commits} (
+        vc_op_id int unsigned NOT NULL default 0,
+        branch_id int unsigned NOT NULL default 0,
+        PRIMARY KEY (vc_op_id)
+      ) /*!40100 DEFAULT CHARACTER SET utf8 */");
+
+      db_query("CREATE TABLE {versioncontrol_git_item_revisions} (
+        item_revision_id int unsigned NOT NULL default 0,
+        vc_op_id int unsigned NOT NULL default 0,
+        action tinyint unsigned NOT NULL default 0,
+        type tinyint NOT NULL default 0,
+        path varchar(255) NOT NULL default '',
+        commit_id varchar(255) NOT NULL default '',
+        lines_added smallint unsigned NOT NULL default 0,
+        lines_removed smallint unsigned NOT NULL default 0,
+        PRIMARY KEY (item_revision_id),
+        UNIQUE KEY (vc_op_id, path)
+      ) /*!40100 DEFAULT CHARACTER SET utf8 */");
+
+      db_query("CREATE TABLE {versioncontrol_git_item_tags} (
+        vc_op_id int unsigned NOT NULL default 0,
+        item_revision_id int unsigned NOT NULL default 0,
+        PRIMARY KEY (vc_op_id, item_revision_id)
+      ) /*!40100 DEFAULT CHARACTER SET utf8 */");
+
+      db_query("CREATE TABLE {versioncontrol_git_item_branch_points} (
+        vc_op_id int unsigned NOT NULL default 0,
+        item_revision_id int unsigned NOT NULL default 0,
+        PRIMARY KEY (vc_op_id, item_revision_id)
+      ) /*!40100 DEFAULT CHARACTER SET utf8 */");
+      break;
+
+    case 'pgsql':
+      db_query("CREATE TABLE {versioncontrol_git_accounts} (
+        uid int NOT NULL default 0,
+        repo_id int NOT NULL default 0,
+        password varchar(64) NOT NULL default '',
+        PRIMARY KEY (uid, repo_id)
+      )");
+
+      db_query("CREATE TABLE {versioncontrol_git_repositories} (
+        repo_id int NOT NULL default 0,
+        modules varchar(255) NOT NULL default '',
+        update_method smallint NOT NULL default 0,
+        updated int NOT NULL default 0,
+        run_as_user varchar(255) NOT NULL default '',
+        PRIMARY KEY (repo_id)
+      )");
+
+      db_query("CREATE TABLE {versioncontrol_git_commits} (
+        vc_op_id int NOT NULL default 0,
+        branch_id int NOT NULL default 0,
+        PRIMARY KEY (vc_op_id)
+      )");
+
+      db_query("CREATE TABLE {versioncontrol_git_item_revisions} (
+        item_revision_id int NOT NULL default 0,
+        vc_op_id int NOT NULL default 0,
+        action smallint NOT NULL default 0,
+        type smallint NOT NULL default 0,
+        path varchar(255) NOT NULL default '',
+        revision varchar(255) NOT NULL default '',
+        lines_added smallint NOT NULL default 0,
+        lines_removed smallint NOT NULL default 0,
+        PRIMARY KEY (item_revision_id),
+        UNIQUE (vc_op_id, path)
+      )");
+
+      db_query("CREATE TABLE {versioncontrol_git_item_tags} (
+        vc_op_id int NOT NULL default 0,
+        item_revision_id int NOT NULL default 0,
+        PRIMARY KEY (vc_op_id, item_revision_id)
+      )");
+
+      db_query("CREATE TABLE {versioncontrol_git_item_branch_points} (
+        vc_op_id int NOT NULL default 0,
+        item_revision_id int NOT NULL default 0,
+        PRIMARY KEY (vc_op_id, item_revision_id)
+      )");
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function versioncontrol_git_uninstall() {
+  // Make sure we can access the required functions even from the .install file.
+  include_once(drupal_get_path('module', 'versioncontrol') .'/versioncontrol.module');
+  include_once(drupal_get_path('module', 'versioncontrol_git') .'/versioncontrol_git.module');
+
+  if (db_table_exists('versioncontrol_repositories')) {
+    $result = db_query("SELECT repo_id FROM {versioncontrol_repositories}
+                        WHERE vcs = 'git'");
+    while ($repository = db_fetch_array($result)) {
+      versioncontrol_delete_repository($repository);
+    }
+  }
+
+  db_query('DROP TABLE {versioncontrol_git_accounts}');
+  db_query('DROP TABLE {versioncontrol_git_repositories}');
+  db_query('DROP TABLE {versioncontrol_git_commits}');
+  db_query('DROP TABLE {versioncontrol_git_item_revisions}');
+  db_query('DROP TABLE {versioncontrol_git_item_tags}');
+  db_query('DROP TABLE {versioncontrol_git_item_branch_points}');
+}

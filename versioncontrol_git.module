@@ -1,0 +1,609 @@
+<?php
+// $Id: versioncontrol_git.module,v 1.1 2008/01/26 21:31:44 boombatower Exp $
+/**
+ * @file
+ * Git backend for Version Control API - Provides Git commit information and
+ * account management as a pluggable backend.
+ *
+ * Copyright 2008 by Jimmy Berry ("boombatower", http://drupal.org/user/214218)
+ */
+
+// Update methods.
+define('VERSIONCONTROL_GIT_UPDATE_CRON', 0);
+
+// The admin and user edit pages.
+include_once(drupal_get_path('module', 'versioncontrol_git') .'/versioncontrol_git.admin.inc');
+
+/**
+ * Implementation of hook_versioncontrol_backends().
+ *
+ * @return
+ *   A structured array containing information about this known backends.
+ *   Array key is the unique string identifier of the version control system.
+ *   The corresponding array values are again structured arrays and consist
+ *   of elements with the following keys:
+ *
+ *   'name': The user-visible name of the VCS.
+ *   'description': A short description of the backend, if possible not longer
+ *                  than one or two sentences.
+ *   'capabilities': An array listing optional capabilities, in addition to the
+ *                   required functionality like retrieval of detailed
+ *                   commit information. Array values can be an arbitrary
+ *                   combination of VERSIONCONTROL_CAPABILITY_* values. If no
+ *                   additional capabilities are supported by the backend,
+ *                   this array will be empty.
+ *   'autoadd': An array listing which tables should be managed by
+ *              Version Control API instead of doing it manually in
+ *              the backend. Array values can be an arbitrary combination of
+ *              VERSIONCONTROL_AUTOADD_* values. If no array additions
+ *              should be automatically managed, this array will be empty.
+ */
+function versioncontrol_git_versioncontrol_backends() {
+  return array(
+    // The array key is up to 8 characters long, and used as unique identifier
+    // for this VCS, in functions, URLs and in the database.
+    'git' => array(
+      // The user-visible name of the VCS.
+      'name' => 'Git',
+
+      // A short description of the VCS, if possible not longer than one or two sentences.
+      'description' => t('Git (Fast Version Control System) is a version control system designed to handle very large projects with speed and efficiency; it is used mainly for various open source projects, most notably the Linux kernel.'),
+
+      // A list of optional capabilities, in addition to the required retrieval
+      // of detailed commit information.
+      'capabilities' => array(
+        // Able to cancel commits if the committer lacks permissions
+        // to commit to specific paths and/or branches.
+        VERSIONCONTROL_CAPABILITY_COMMIT_RESTRICTIONS,
+        // Able to cancel branch or tag assignments if the committer lacks
+        // permissions to create/update/delete those.
+        VERSIONCONTROL_CAPABILITY_BRANCH_TAG_RESTRICTIONS,
+      ),
+
+      // An array listing which tables should be managed by Version Control API
+      // instead of doing it manually in the backend.
+      'flags' => array(
+        // versioncontrol_insert_repository() will automatically insert
+        // array elements from $repository['git_specific'] into
+        // {versioncontrol_git_repositories} and versioncontrol_get_repositories()
+        // will automatically fetch it from there.
+        VERSIONCONTROL_FLAG_AUTOADD_REPOSITORIES,
+        // versioncontrol_insert_commit() will automatically insert
+        // array elements from $commit['git_specific'] into
+        // {versioncontrol_git_commits} and versioncontrol_get_commits()
+        // will automatically fetch it from there.
+        VERSIONCONTROL_FLAG_AUTOADD_COMMITS,
+      ),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function versioncontrol_git_menu($may_cache) {
+  global $user;
+  $items = array();
+  $admin_access = user_access('administer version control systems');
+
+  if ($may_cache) {
+    $items[] = array(
+      'path' => 'admin/project/versioncontrol-repositories/update/git',
+      'title' => t('Fetch log'),
+      'callback' => 'versioncontrol_git_update_repository_callback',
+      'access' => $admin_access,
+      'type' => MENU_CALLBACK,
+    );
+  }
+  return $items;
+}
+
+/**
+ * Implementation of hook_cron():
+ * Update repositories that have log fetching enabled.
+ */
+function versioncontrol_git_cron() {
+  $result = db_query("SELECT repo_id FROM {versioncontrol_git_repositories}
+                      WHERE update_method = %d", VERSIONCONTROL_GIT_UPDATE_CRON);
+
+  // Set timeout limit to 3600 seconds as it can take a long time to process
+  // the log initially. (And hook_cron() might be called by poormanscron.)
+  if (!ini_get('safe_mode')) {
+    set_time_limit(3600);
+  }
+  while ($repo = db_fetch_object($result)) {
+    $repository = versioncontrol_get_repository($repo->repo_id);
+    if (isset($repository)) {
+      _versioncontrol_git_update_repository($repository);
+    }
+  }
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_commit_actions():
+ * Retrieve detailed information about what happened in a single commit.
+ *
+ * @param $commit
+ *   The commit whose actions should be retrieved.
+ *
+ * @return
+ *   A structured array containing the exact details of what happened to
+ *   each item in this commit. Array keys are the current/new paths, also for
+ *   VERSIONCONTROL_ACTION_DELETED actions even if the file actually doesn't
+ *   exist anymore. The corresponding array values are again structured arrays
+ *   and consist of elements with the following keys:
+ *
+ *   'action': Specifies how the item was modified.
+ *             One of the predefined VERSIONCONTROL_ACTION_* values.
+ *   'modified': Boolean value, specifies if a file was modified in addition
+ *               to the other action in the 'action' element of the array.
+ *               Only exists for the VERSIONCONTROL_ACTION_MOVED
+ *               and VERSIONCONTROL_ACTION_COPIED actions.
+ *   'current item': The updated state of the modified item. Exists for all
+ *                   actions except VERSIONCONTROL_ACTION_DELETED.
+ *   'source items': An array with the previous state(s) of the modified item.
+ *                   Path and branch will always be the same as in the current
+ *                   item except for the VERSIONCONTROL_ACTION_MOVED,
+ *                   VERSIONCONTROL_ACTION_COPIED and
+ *                   VERSIONCONTROL_ACTION_MERGED actions.
+ *                   Exists for all actions except VERSIONCONTROL_ACTION_ADDED.
+ *
+ *   Item values are structured arrays and consist of elements
+ *   with the following keys:
+ *
+ *   'type': Specifies the item type, which is either
+ *           VERSIONCONTROL_ITEM_FILE or VERSIONCONTROL_ITEM_DIRECTORY.
+ *   'path': The path of the item at the specific revision.
+ *   'revision': The (file-level) revision when the item was changed.
+ *               If there is no such revision (which may be the case for
+ *               directory items) then the 'revision' element is
+ *               an empty string.
+ *   '[xxx]_specific': May be set by the backend to remember additional
+ *                     item info. ("[xxx]" is the unique string identifier
+ *                     of the respective version control system.)
+ */
+function versioncontrol_git_get_commit_actions($commit) {
+  include_once(drupal_get_path('module', 'versioncontrol_git') .'/versioncontrol_git.log.inc');
+
+  $actions = array();
+  $result = db_query('SELECT item_revision_id, action, type, path,
+                             commit_id, lines_added, lines_removed
+                      FROM {versioncontrol_git_item_revisions}
+                      WHERE vc_op_id = %d', $commit['vc_op_id']);
+
+  while ($item_revision = db_fetch_object($result)) {
+    $action = array(
+      'action' => $item_revision->action,
+      'git_specific' => array(
+        'lines_added' => $item_revision->lines_added,
+        'lines_removed' => $item_revision->lines_removed,
+      ),
+    );
+
+    if ($item_revision->action != VERSIONCONTROL_ACTION_DELETED) {
+      $action['current item'] = array(
+        'type' => $item_revision->type,
+        'path' => $item_revision->path,
+        'revision' => $item_revision->commit_id,
+        'git_specific' => array(
+          'item_revision_id' => $item_revision->item_revision_id,
+          'selected_branch_id' => $commit['git_specific']['branch_id'],
+          'selected_op' => $commit,
+        ),
+      );
+    }
+    if ($item_revision->action != VERSIONCONTROL_ACTION_ADDED) {
+      $source_revision = versioncontrol_git_get_previous_commit_id($commit['repository']['repo_id'], $item_revision->path, $commit['vc_op_id']);
+      $action['source items'] = array(array(
+        'type' => $item_revision->type,
+        'path' => $item_revision->path,
+        'revision' => isset($source_revision) ? $source_revision : '',
+        'git_specific' => array(
+          'item_revision_id' => $item_revision->item_revision_id,
+          'selected_branch_id' => $commit['git_specific']['branch_id'],
+          'selected_op' => $commit,
+        ),
+      ));
+    }
+
+    $actions[$item_revision->path] = $action;
+  }
+
+  return $actions;
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_commit_statistics():
+ * Retrieve general statistics about what happened in a single commit. For more granular
+ * details about what happened in a single commit, use versioncontrol_get_commit_actions.
+ *
+ * @param $commit
+ *   The commit to retrieve statistics about
+ *
+ * @return
+ *  A structured array containing general statistics about this commit. The array will consist
+ *  of elements with the following keys:
+ *
+ *   - 'lines_added': Total number of lines added during this commit
+ *   - 'lines_removed': Total number of lines removed during this commit
+ *   - 'action_count': Total number of actions within this commit
+ *   - 'per_action_statistics': An array containing statistics on individual actions. Array keys are
+ *        the current/new paths (just as with versioncontrol_get_commit_actions). The corresponding
+ *        array values are again structured arrays and consist of elements with the following keys:
+ *   
+ *   - 'lines_added': Number of lines added in this action
+ *   - 'lines_removed': Number of lines removed in this action
+ */
+function versioncontrol_git_get_commit_statistics($commit, $commit_actions = NULL) {
+  if ($commit_actions == NULL) {
+    $commit_actions = versioncontrol_git_get_commit_actions($commit);
+  }
+
+  $total_lines_added = 0;
+  $total_lines_removed = 0;
+  $per_action = array();
+
+  foreach ($commit_actions as $path => $action) {
+    $per_action[$path] = array();
+
+    $per_action[$path]['lines_added'] = $action['git_specific']['lines_added'];
+    $total_lines_added += $per_action[$path]['lines_added'];
+
+    $per_action[$path]['lines_removed'] = $action['git_specific']['lines_removed'];
+    $total_lines_removed += $action['git_specific']['lines_removed'];
+  }
+
+  return array(
+    'lines_added' => $total_lines_added,
+    'lines_removed' => $total_lines_removed,
+    'action_count' => count($per_action),
+    'per_action_statistics' => $per_action,
+  );
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_directory_item():
+ * Retrieve the item of the deepest-level directory in the repository that is
+ * common to all the changed/branched/tagged items in a commit, branch or
+ * tag operation. In other words, this function gets you the item
+ * for $operation['directory'].
+ *
+ * @param $operation
+ *   The commit, branch or tag operation whose deepest-level
+ *   changed/branched/tagged directory should be retrieved.
+ *
+ * @return
+ *   The requested directory item. Item values are structured arrays and
+ *   consist of elements with the following keys:
+ *
+ *   - 'type': Specifies the item type, which in this case can only be
+ *        VERSIONCONTROL_ITEM_DIRECTORY.
+ *   - 'path': The path of the directory, which will be the same
+ *        as $operation['directory'].
+ *   - 'revision': The (file-level) revision when the item was last changed.
+ *        If there is no such revision (which may be the case for
+ *        directory items) then the 'revision' element is an empty string.
+ *   - '[xxx]_specific': May be set by the backend to remember additional
+ *        item info. ("[xxx]" is the unique string identifier
+ *        of the respective version control system.)
+ */
+function versioncontrol_git_get_directory_item($operation) {
+  $item = array(
+    'type' => VERSIONCONTROL_ITEM_DIRECTORY,
+    'path' => $operation['directory'],
+    'commit_id' => '',
+    'git_specific' => array(
+      'selected_op' => $operation,
+    ),
+  );
+  if (isset($operation['git_specific']['branch_id'])) { // It's a commit or branch.
+    $item['git_specific']['selected_branch_id'] = $operation['git_specific']['branch_id'];
+  }
+  return $item;
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_commit_branches():
+ * Retrieve the branches that have been affected by the given commit.
+ *
+ * @return
+ *   An array of strings that identify a branch in the respective repository,
+ *   or an empty array if no branches were affected at all. (For Git, there
+ *   should always be a exactly one branch in the resulting array.)
+ */
+function versioncontrol_git_get_commit_branches($commit) {
+  if (!isset($commit['git_specific']['branch_id'])) {
+    return array();
+  }
+
+  $branch = versioncontrol_get_branch($commit['git_specific']['branch_id']);
+  if (!isset($branch)) {
+    return array(); // should only happen in case of database inconsistencies
+  }
+  return array($branch['branch_name']);
+}
+
+/**
+ * Retrieve the set of items that were affected by a branch operation.
+ *
+ * @param $branch
+ *   The branch operation whose items should be retrieved. This is an array
+ *   like the one returned by versioncontrol_get_branch_operation().
+ *
+ * @return
+ *   An array of all items that were affected by the branching operation.
+ *   An empty result array means that the whole repository has been branched.
+ *   Item values are structured arrays and consist of elements
+ *   with the following keys:
+ *
+ *   - 'type': Specifies the item type, which is either
+ *        VERSIONCONTROL_ITEM_FILE or VERSIONCONTROL_ITEM_DIRECTORY.
+ *   - 'path': The path of the item at the specific revision.
+ *   - 'revision': The (file-level) revision when the item was changed.
+ *        If there is no such revision (which may be the case for
+ *        directory items) then the 'revision' element is an empty string.
+ *   - 'source branch': Optional, may be set by the backend if the
+ *        source branch (the one that this one branched off) can be retrieved.
+ *        If given, this is a string with the original branch name.
+ *   - '[xxx]_specific': May be set by the backend to remember additional
+ *        item info. ("[xxx]" is the unique string identifier of the respective
+ *        version control system.)
+ */
+function versioncontrol_git_get_branched_items($branch) {
+  $items = array();
+  $result = db_query('SELECT ir.item_revision_id, ir.type, ir.path, ir.revision
+                      FROM {versioncontrol_git_item_branch_points} ib
+                       INNER JOIN {versioncontrol_git_item_revisions} ir
+                        ON ib.item_revision_id = ir.item_revision_id
+                      WHERE ib.vc_op_id = %d', $branch['vc_op_id']);
+
+  while ($item_revision = db_fetch_object($result)) {
+    $items[] = array(
+      'type' => $item_revision->type,
+      'path' => $item_revision->path,
+      'revision' => $item_revision->revision,
+      'git_specific' => array(
+        'item_revision_id' => $item_revision->item_revision_id,
+        'selected_branch_id' => $branch['git_specific']['branch_id'],
+        'selected_op' => $branch,
+      ),
+    );
+  }
+  return $items;
+}
+
+/**
+ * Retrieve the set of items that were affected by a tag operation.
+ *
+ * @param $tag
+ *   The tag operation whose items should be retrieved. This is an array
+ *   like the one returned by versioncontrol_get_tag_operation().
+ *
+ * @return
+ *   An array of all items that were affected by the tagging operation.
+ *   An empty result array means that the whole repository has been tagged.
+ *   Item values are structured arrays and consist of elements
+ *   with the following keys:
+ *
+ *   - 'type': Specifies the item type, which is either
+ *        VERSIONCONTROL_ITEM_FILE or VERSIONCONTROL_ITEM_DIRECTORY.
+ *   - 'path': The path of the item at the specific revision.
+ *   - 'revision': The (file-level) revision when the item was changed.
+ *        If there is no such revision (which may be the case for
+ *        directory items) then the 'revision' element is an empty string.
+ *   - 'source branch': Optional, may be set by the backend if the
+ *        source branch (the one that this tag comes from) can be retrieved.
+ *        If given, this is a string with the original branch name.
+ *   - '[xxx]_specific': May be set by the backend to remember additional
+ *        item info. ("[xxx]" is the unique string identifier of the respective
+ *        version control system.)
+ */
+function versioncontrol_git_get_tagged_items($tag) {
+  $items = array();
+  $result = db_query('SELECT ir.item_revision_id, ir.type, ir.path, ir.revision
+                      FROM {versioncontrol_git_item_tags} it
+                       INNER JOIN {versioncontrol_git_item_revisions} ir
+                        ON it.item_revision_id = ir.item_revision_id
+                      WHERE it.vc_op_id = %d', $tag['vc_op_id']);
+
+  while ($item_revision = db_fetch_object($result)) {
+    $items[] = array(
+      'type' => $item_revision->type,
+      'path' => $item_revision->path,
+      'revision' => $item_revision->revision,
+      'git_specific' => array(
+        'item_revision_id' => $item_revision->item_revision_id,
+        'selected_op' => $tag,
+      ),
+    );
+  }
+  return $items;
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_current_item_branch():
+ * Retrieve the current branch that this item is in. If this item was part of
+ * the result of versioncontrol_get_commit_actions(), this will probably be
+ * the branch that this item was committed to. The main branch ('HEAD' for Git)
+ * is also a valid branch and should be expected as return value.
+ *
+ * @param $repository
+ *   The repository that the item is located in.
+ * @param $item
+ *   The item whose current branch should be retrieved.
+ *
+ * @return
+ *   A string containing the current item branch, or NULL if no branch
+ *   is known or applicable.
+ */
+function versioncontrol_git_get_current_item_branch($repository, $item) {
+  if (!isset($item['git_specific']['selected_branch_id'])) {
+    return NULL;
+  }
+
+  $branch = versioncontrol_get_branch($item['git_specific']['selected_branch_id']);
+  if (!isset($branch)) {
+    return NULL;
+  }
+  return $branch['branch_name'];
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_current_item_tag():
+ * Retrieve the current tag of this item.
+ *
+ * @param $repository
+ *   The repository that the item is located in.
+ * @param $item
+ *   The item whose current branch should be retrieved.
+ *
+ * @return
+ *   A tag operation array like the return value
+ *   of versioncontrol_get_tag_operation(), or NULL if no tag
+ *   is known or applicable.
+ */
+function versioncontrol_git_get_current_item_tag($repository, $item) {
+  if ($item['git_specific']['selected_op']['type'] != VERSIONCONTROL_OPERATION_TAG) {
+    return NULL;
+  }
+  return $item['git_specific']['selected_op'];
+}
+
+/**
+ * Implementation of [vcs_backend]_get_parent_item():
+ * Retrieve the parent (directory) item of a given item.
+ *
+ * @param $repository
+ *   The repository that the item is located in.
+ * @param $item
+ *   The item whose parent should be retrieved.
+ * @param $parent_path
+ *   NULL if the direct parent of the given item should be retrieved,
+ *   or a parent path that is further up the directory tree.
+ *
+ * @return
+ *   The parent directory item at the same revision as the given item.
+ *   If $parent_path is not set and the item is already the topmost one
+ *   in the repository, the item is returned as is. It also stays the same
+ *   if $parent_path is given and the same as the path of the given item.
+ *   If the given directory path does not correspond to a parent item,
+ *   NULL is returned.
+ */
+function versioncontrol_git_get_parent_item($repository, $item, $parent_path = NULL) {
+  if (!isset($parent_path)) {
+    $item['path'] = dirname($item['path']);
+    return $item;
+  }
+  else if (strpos($item['path'] .'/', $parent_path .'/') !== FALSE) {
+    $item['path'] = $parent_path;
+    return $item;
+  }
+  return NULL;
+}
+
+/**
+ * Menu callback for 'admin/project/versioncontrol-repositories/update/git'
+ * (expecting a $repo_id as one more path argument):
+ * Retrieve/validate the specified repository, fetch new commits, tags
+ * and branches by invoking the git executable, output messages and
+ * redirect back to the repository page.
+ */
+function versioncontrol_git_update_repository_callback($repo_id) {
+  if (is_numeric($repo_id)) {
+    $repository = versioncontrol_get_repository($repo_id);
+
+    if (isset($repository)) {
+      $update_method = $repository['git_specific']['update_method'];
+    }
+  }
+  if (isset($update_method) && $update_method == VERSIONCONTROL_GIT_UPDATE_CRON) {
+    // Set timeout limit to 3600 seconds as it can take a long time
+    // to process the log initially.
+    if (!ini_get('safe_mode')) {
+      set_time_limit(3600);
+    }
+    if (_versioncontrol_git_update_repository($repository)) {
+      drupal_set_message(t('Fetched new log entries.'));
+    }
+  }
+  else { // $repo_id is not a number or doesn't correlate to any repository.
+    drupal_set_message(t('No such repository, did not fetch anything.'));
+  }
+  drupal_goto('admin/project/versioncontrol-repositories');
+}
+
+/**
+ * Actually update the repository by fetching commits and other stuff
+ * directly from the repository, invoking the git executable.
+ *
+ * @return
+ *   TRUE if the logs were updated, or FALSE if fetching and updating the logs
+ *   failed for whatever reason.
+ */
+function _versioncontrol_git_update_repository(&$repository) {
+  include_once(drupal_get_path('module', 'versioncontrol_git') .'/versioncontrol_git.log.inc');
+  return _versioncontrol_git_log_update_repository($repository);
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_commit():
+ * Manage (insert or delete) additional commit data in the database.
+ *
+ * @param $op
+ *   Either 'insert' when the commit is in the process of being created,
+ *   or 'delete' if it will be deleted after this function has been called.
+ * @param $commit
+ *   A single commit array, like the ones returned
+ *   by versioncontrol_get_commits().
+ * @param $commit_actions
+ *   A structured array containing the exact details of what happened to
+ *   each item in this commit. The structure of this array is the same as
+ *   the return value of versioncontrol_get_commit_actions().
+ */
+function versioncontrol_git_commit($op, $commit, $commit_actions) {
+  switch ($op) {
+    case 'insert':
+      foreach ($commit_actions as $path => $action) {
+        $commit_id = '';
+
+        // If available, get item type and revision from the contained items.
+        if (isset($action['current item'])) {
+          $type = $action['current item']['type'];
+          $commit_id = $action['current item']['commit_id'];
+        }
+        else { // no current item -> file has been deleted
+          $type = VERSIONCONTROL_ITEM_FILE_DELETED;
+          $commit_id = $action['git_specific']['commit_id'];
+        }
+
+        $item_revision_id = db_next_id('{versioncontrol_git_item_revisions}_item_revision_id');
+        db_query(
+          "INSERT INTO {versioncontrol_git_item_revisions}
+           (item_revision_id, vc_op_id, type, path, commit_id,
+            action, lines_added, lines_removed)
+           VALUES (%d, %d, %d, '%s', '%s', %d, %d, %d)",
+          $item_revision_id, $commit['vc_op_id'], $type, $path, $commit_id,
+          $action['action'], $action['git_specific']['lines_added'],
+          $action['git_specific']['lines_removed']
+        );
+      }
+      break;
+
+    case 'delete':
+      $result = db_query('SELECT item_revision_id
+                          FROM {versioncontrol_git_item_revisions}
+                          WHERE vc_op_id = %d', $commit['vc_op_id']);
+
+      while ($revision = db_fetch_object($result)) {
+        db_query('DELETE FROM {versioncontrol_git_item_tags}
+                  WHERE item_revision_id = %d',
+                  $revision->item_revision_id);
+        db_query('DELETE FROM {versioncontrol_git_item_branch_points}
+                  WHERE item_revision_id = %d',
+                  $revision->item_revision_id);
+      }
+      db_query('DELETE FROM {versioncontrol_git_item_revisions}
+                WHERE vc_op_id = %d', $commit['vc_op_id']);
+      break;
+  }
+}
