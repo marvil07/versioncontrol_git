@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.install,v 1.1 2008/01/26 21:31:44 boombatower Exp $
+// $Id: versioncontrol_git.install,v 1.2 2008/01/27 02:51:33 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -56,10 +56,10 @@ function versioncontrol_git_install() {
         PRIMARY KEY (vc_op_id, item_revision_id)
       ) /*!40100 DEFAULT CHARACTER SET utf8 */");
 
-      db_query("CREATE TABLE {versioncontrol_git_item_branch_points} (
-        vc_op_id int unsigned NOT NULL default 0,
-        item_revision_id int unsigned NOT NULL default 0,
-        PRIMARY KEY (vc_op_id, item_revision_id)
+      db_query("CREATE TABLE {versioncontrol_git_tag_operations} (
+        vc_op_id int NOT NULL default 0,
+        commit_id varchar(255) NOT NULL default '',
+        PRIMARY KEY (vc_op_id)
       ) /*!40100 DEFAULT CHARACTER SET utf8 */");
       break;
 
@@ -92,7 +92,7 @@ function versioncontrol_git_install() {
         action smallint NOT NULL default 0,
         type smallint NOT NULL default 0,
         path varchar(255) NOT NULL default '',
-        revision varchar(255) NOT NULL default '',
+        commit_id varchar(255) NOT NULL default '',
         lines_added smallint NOT NULL default 0,
         lines_removed smallint NOT NULL default 0,
         PRIMARY KEY (item_revision_id),
@@ -105,10 +105,10 @@ function versioncontrol_git_install() {
         PRIMARY KEY (vc_op_id, item_revision_id)
       )");
 
-      db_query("CREATE TABLE {versioncontrol_git_item_branch_points} (
+      db_query("CREATE TABLE {versioncontrol_git_tag_operations} (
         vc_op_id int NOT NULL default 0,
-        item_revision_id int NOT NULL default 0,
-        PRIMARY KEY (vc_op_id, item_revision_id)
+        commit_id varchar(255) NOT NULL default '',
+        PRIMARY KEY (vc_op_id)
       )");
       break;
   }
@@ -135,5 +135,5 @@ function versioncontrol_git_uninstall() {
   db_query('DROP TABLE {versioncontrol_git_commits}');
   db_query('DROP TABLE {versioncontrol_git_item_revisions}');
   db_query('DROP TABLE {versioncontrol_git_item_tags}');
-  db_query('DROP TABLE {versioncontrol_git_item_branch_points}');
+  db_query('DROP TABLE {versioncontrol_git_tag_operations}');
 }

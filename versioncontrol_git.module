@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.module,v 1.1 2008/01/26 21:31:44 boombatower Exp $
+// $Id: versioncontrol_git.module,v 1.2 2008/01/27 02:51:33 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -399,25 +399,7 @@ function versioncontrol_git_get_branched_items($branch) {
  *        version control system.)
  */
 function versioncontrol_git_get_tagged_items($tag) {
-  $items = array();
-  $result = db_query('SELECT ir.item_revision_id, ir.type, ir.path, ir.revision
-                      FROM {versioncontrol_git_item_tags} it
-                       INNER JOIN {versioncontrol_git_item_revisions} ir
-                        ON it.item_revision_id = ir.item_revision_id
-                      WHERE it.vc_op_id = %d', $tag['vc_op_id']);
-
-  while ($item_revision = db_fetch_object($result)) {
-    $items[] = array(
-      'type' => $item_revision->type,
-      'path' => $item_revision->path,
-      'revision' => $item_revision->revision,
-      'git_specific' => array(
-        'item_revision_id' => $item_revision->item_revision_id,
-        'selected_op' => $tag,
-      ),
-    );
-  }
-  return $items;
+  return array();
 }
 
 /**
@@ -605,5 +587,85 @@ function versioncontrol_git_commit($op, $commit, $commit_actions) {
       db_query('DELETE FROM {versioncontrol_git_item_revisions}
                 WHERE vc_op_id = %d', $commit['vc_op_id']);
       break;
+  }
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_tag_operation():
+ * Manage (insert or delete) additional tag data in the database.
+ *
+ * @param $op
+ *   'insert' when the tag operation has just been recorded and inserted
+ *   into the database, or 'delete' if it will be deleted right after this hook
+ *   has been called.
+ *
+ * @param $tag
+ *   A structured array that consists of the following elements:
+ *
+ *   - 'vc_op_id': The Drupal-specific operation identifier (a simple integer)
+ *        which is unique among all operations (commits, branch ops, tag ops)
+ *        in all repositories.
+ *   - 'type': The type of the operation, which is
+ *        VERSIONCONTROL_OPERATION_TAG for tags.
+ *   - 'tag_name': The name of the tag (a string like 'DRUPAL-6--1-1').
+ *   - 'action': Specifies what happened to the tag. This is
+ *        VERSIONCONTROL_ACTION_ADDED if the tag was created,
+ *        VERSIONCONTROL_ACTION_MOVED if was renamed,
+ *        or VERSIONCONTROL_ACTION_DELETED if was deleted.
+ *   - 'date': The time when the tagging was done, given as Unix timestamp.
+ *   - 'uid': The Drupal user id of the committer, or 0 if no Drupal user
+ *        could be associated to the committer.
+ *   - 'username': The system specific VCS username of the committer.
+ *   - 'repository': The repository where the tagging occurred,
+ *        given as a structured array, like the return value
+ *        of versioncontrol_get_repository().
+ *   - 'directory': The deepest-level directory in the repository that is
+ *        common to all the tagged items, e.g. '/src' if the files
+ *        '/src/subdir/code.php' and '/src/README.txt' were tagged.
+ *   - 'message': The tag message that the user has given. If the version
+ *        control system doesn't support tag messages, this is an empty string.
+ *   - '[xxx]_specific': An array of VCS specific additional tag operation info.
+ *        How this array looks like is defined by the corresponding
+ *        backend module (versioncontrol_[xxx]).
+ *
+ * @param $tagged_items
+ *   An array of all items that were affected by the tagging operation.
+ *   An empty result array means that the whole repository has been tagged.
+ *   Item values are structured arrays and consist of elements
+ *   with the following keys:
+ *
+ *   - 'type': Specifies the item type, which is either
+ *        VERSIONCONTROL_ITEM_FILE or VERSIONCONTROL_ITEM_DIRECTORY.
+ *   - 'path': The path of the item at the specific revision.
+ *   - 'revision': The (file-level) revision when the item was changed.
+ *        If there is no such revision (which may be the case for
+ *        directory items) then the 'revision' element is an empty string.
+ *   - 'source branch': Optional, may be set by the backend if the
+ *        source branch (the one that this tag comes from) can be retrieved.
+ *        If given, this is a string with the original branch name.
+ *   - '[xxx]_specific': May be set by the backend to remember additional
+ *        item info. ("[xxx]" is the unique string identifier of the respective
+ *        version control system.)
+ *
+ * @ingroup Tags
+ * @ingroup Commit notification
+ * @ingroup Database change notification
+ */
+function versioncontrol_git_tag_operation($op, $tag, $tagged_items) {
+  switch ($op) {
+    case 'insert':
+      db_query(
+        "INSERT INTO {versioncontrol_git_tag_operations}
+         (vc_op_id, commit_id)
+         VALUES (%d, '%s')",
+         $tag['vc_op_id'], $tag['git_specific']['commit_id']
+    );
+    break;
+
+    case 'delete':
+      db_query('DELETE FROM {versioncontrol_git_tag_operations}
+        WHERE vc_op_id = %d',
+      $tag['vc_op_id']);
+    break;
   }
 }

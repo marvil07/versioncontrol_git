@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.log.inc,v 1.3 2008/01/26 23:41:46 boombatower Exp $
+// $Id: versioncontrol_git.log.inc,v 1.4 2008/01/27 02:51:33 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -28,7 +28,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
 
   $temp_file = '';
   $file_revisions = array();
-  
+
   // Get branches.
   $logs = _versioncontrol_git_log_exec($root, 'git branch', $temp_file); // Query branches.
   $branches = _versioncontrol_git_log_parse_branches($logs); // Parse output.
@@ -39,24 +39,33 @@ function _versioncontrol_git_log_update_repository(&$repository) {
 
   // Call Git in order to get the raw logs for each branch.
   foreach ($branches as $branch) {
-	  $command = "$context git log $branch --numstat --summary --pretty=medium $date";
-	  $logs = _versioncontrol_git_log_exec($root, $command, $temp_file);
-	  _versioncontrol_git_log_parse($repository, $logs, $file_revisions, $branch); // Parse the info from the raw output.
-	
-	  if (variable_get('versioncontrol_git_log_use_file', 1)) {
-	    fclose($logs);
-	    unlink($temp_file);
-	  }
-	  
-	  watchdog('special', $command);
+    $command = "$context git log $branch --numstat --summary --pretty=medium $date";
+    $logs = _versioncontrol_git_log_exec($root, $command, $temp_file);
+    _versioncontrol_git_log_parse($repository, $logs, $file_revisions, $branch); // Parse the info from the raw output.
+
+    if (variable_get('versioncontrol_git_log_use_file', 1)) {
+      fclose($logs);
+      unlink($temp_file);
+    }
+
+    watchdog('special', $command);
   }
 
   // Having retrieved the file revisions, insert those into the database
   // as Version Control API commits.
   _versioncontrol_git_log_process($repository, $file_revisions);
-  $repository['git_specific']['updated'] = $date_updated;
+
+  // Check tags.
+  $logs = _versioncontrol_git_log_exec($root, 'git tag', $temp_file); // Query tags.
+  $tags = _versioncontrol_git_log_parse_tags($root, $logs); // Parse output.
+  if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
+    fclose($logs);
+    unlink($temp_file);
+  }
+  _versioncontrol_git_log_process_tags($repository, $tags);
 
   // Everything's done, remember the time when we updated the log (= now).
+  $repository['git_specific']['updated'] = $date_updated;
   db_query('UPDATE {versioncontrol_git_repositories}
             SET updated = %d WHERE repo_id = %d',
             $repository['git_specific']['updated'], $repository['repo_id']);
@@ -72,8 +81,8 @@ function _versioncontrol_git_log_update_repository(&$repository) {
  * @return mixed Logged output from the command in either array of file pointer form.
  */
 function _versioncontrol_git_log_exec($root, $command, &$temp_file) {
-	$exec = "cd $root; $command";
-	if (variable_get('versioncontrol_git_log_use_file', 1)) {
+  $exec = "cd $root; $command";
+  if (variable_get('versioncontrol_git_log_use_file', 1)) {
     $temp_dir = variable_get('file_directory_temp', (PHP_OS == 'WINNT' ? 'c:\\windows\\temp' : '/tmp'));
     $temp_file = $temp_dir .'/git-'. rand();
     exec("$exec > $temp_file");
@@ -88,18 +97,100 @@ function _versioncontrol_git_log_exec($root, $command, &$temp_file) {
 }
 
 function _versioncontrol_git_log_parse_branches(&$logs) {
-	// If the log was retrieved by taking the return value of exec(), we've
+  // If the log was retrieved by taking the return value of exec(), we've
   // got an array and navigate it via next(). If we stored the log in a
   // temporary file, $logs is a file handle that we need to fgets() instead.
   $next = is_array($logs) ? 'next' : 'fgets';
-  
+
   $branches = array();
   while (($line = $next($logs)) !== FALSE) {
-  	if (preg_match('/([^*\s]+)$/', $line, $matches)) { // Remove whitespace and ensure that the active module symbol '*' doesn't get included.
-  		$branches[] = $matches[1];
-  	}
+    if (preg_match('/([^*\s]+)$/', $line, $matches)) { // Remove whitespace and ensure that the active module symbol '*' doesn't get included.
+      $branches[] = $matches[1];
+    }
   }
   return $branches;
+}
+
+function _versioncontrol_git_log_parse_tags($root, &$logs) {
+  // If the log was retrieved by taking the return value of exec(), we've
+  // got an array and navigate it via next(). If we stored the log in a
+  // temporary file, $logs is a file handle that we need to fgets() instead.
+  $next = is_array($logs) ? 'next' : 'fgets';
+
+  $tags = array();
+  while (($line = $next($logs)) !== FALSE) { // TODO Possible parse message associated with tag.
+    if (preg_match('/([^\s]+)$/', $line, $matches)) { // Remove whitespace.
+      $tag = new StdClass();
+      $tag->name = $matches[1];
+
+      // Query most recent commit in tag.
+      $temp_file = '';
+      $logs2 = _versioncontrol_git_log_exec($root, 'git log '. $tag->name .' -n 1', $temp_file);
+
+      if (preg_match('/^commit (.+)$/', $next($logs2), $matches)) {
+        $tag->commit_id = $matches[1];
+      }
+
+      if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
+        fclose($logs2);
+        unlink($temp_file);
+      }
+
+      $tags[] = $tag;
+    }
+  }
+  return $tags;
+}
+
+/**
+ * Update the database by processing and inserting the previously retrieved tags.
+ *
+ * @param array $repository The repository array, as given by the Version Control API.
+ * @param array $tags List of tags to process.
+ */
+function _versioncontrol_git_log_process_tags($repository, $tags) {
+  $tag_actions = array();
+
+  foreach ($tags as $tag) {
+    // Don't insert the same tag twice.
+    $count = db_result(db_query(
+      "SELECT COUNT(*)
+       FROM {versioncontrol_git_tag_operations} gtag_op
+        INNER JOIN {versioncontrol_operations} op
+         ON gtag_op.vc_op_id = op.vc_op_id
+        INNER JOIN {versioncontrol_tag_operations} tag_op
+         ON gtag_op.vc_op_id = tag_op.vc_op_id
+       WHERE op.repo_id = %d AND op.type = %d
+        AND gtag_op.commit_id = '%s'",
+      $repository['repo_id'], VERSIONCONTROL_OPERATION_TAG,
+      $tag->commit_id
+    ));
+    if ($count > 0) {
+      continue;
+    }
+
+    $tag_action = array(
+      'tag_name' => $tag->name,
+      'action' => VERSIONCONTROL_ACTION_ADDED,
+      'date' => time(), // TODO Find out if date can be retrived.
+      'username' => 'anonymous', // TODO Find out if username can be retrived.
+      'repo_id' => $repository['repo_id'],
+      'message' => '', // TODO Find out if message can be retrived.
+      'git_specific' => array(
+        'commit_id' => $tag->commit_id,
+      )
+    );
+    $tagged_items = array();
+
+    $tag_actions[$tag_action['date']][] = array($tag_action, $tagged_items);
+  }
+
+  ksort($tag_actions);
+  foreach ($tag_actions as $date => $date_tag_actions) {
+    foreach ($date_tag_actions as $tag_actions_info) {
+      versioncontrol_insert_tag_operation($tag_actions_info[0], $tag_actions_info[1]);
+    }
+  }
 }
 
 /**
