@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.log.inc,v 1.4 2008/01/27 02:51:33 boombatower Exp $
+// $Id: versioncontrol_git.log.inc,v 1.5 2008/01/27 22:26:52 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -128,7 +128,7 @@ function _versioncontrol_git_log_parse_tags($root, &$logs) {
       $logs2 = _versioncontrol_git_log_exec($root, 'git log '. $tag->name .' -n 1', $temp_file);
 
       if (preg_match('/^commit (.+)$/', $next($logs2), $matches)) {
-        $tag->commit_id = $matches[1];
+        $tag->revision = $matches[1];
       }
 
       if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
@@ -161,9 +161,9 @@ function _versioncontrol_git_log_process_tags($repository, $tags) {
         INNER JOIN {versioncontrol_tag_operations} tag_op
          ON gtag_op.vc_op_id = tag_op.vc_op_id
        WHERE op.repo_id = %d AND op.type = %d
-        AND gtag_op.commit_id = '%s'",
+        AND gtag_op.revision = '%s'",
       $repository['repo_id'], VERSIONCONTROL_OPERATION_TAG,
-      $tag->commit_id
+      $tag->revision
     ));
     if ($count > 0) {
       continue;
@@ -177,7 +177,7 @@ function _versioncontrol_git_log_process_tags($repository, $tags) {
       'repo_id' => $repository['repo_id'],
       'message' => '', // TODO Find out if message can be retrived.
       'git_specific' => array(
-        'commit_id' => $tag->commit_id,
+        'revision' => $tag->revision,
       )
     );
     $tagged_items = array();
@@ -238,7 +238,7 @@ function _versioncontrol_git_log_parse($repository, &$logs, &$file_revisions, $b
     if (!$matches_found) {
       continue;
     }
-    $commit_id = $matches[1];
+    $revision = $matches[1];
 
     $line = $next($logs);
     if (preg_match('/^Author: ([^<]+)/', $line, $matches)) { // Ignore e-mail address.
@@ -267,7 +267,7 @@ function _versioncontrol_git_log_parse($repository, &$logs, &$file_revisions, $b
     while (($line = $next($logs)) !== FALSE) {
       if (is_numeric($line[0]) && preg_match('/^(\S+)'."\t".'(\S+)'."\t".'(.+)$/', $line, $matches)) { // Begins with num lines added and matches expression.
         $file_revision = new StdClass();
-        $file_revision->commit_id = $commit_id;
+        $file_revision->revision = $revision;
         $file_revision->username = $author;
         $file_revision->date = strtotime($date);
         $file_revision->message = $message;
@@ -321,9 +321,9 @@ function _versioncontrol_git_log_process($repository, $file_revisions) {
         INNER JOIN {versioncontrol_operations} op
          ON ir.vc_op_id = op.vc_op_id
        WHERE op.repo_id = %d AND op.type = %d
-        AND ir.path = '%s' AND ir.commit_id = '%s'",
+        AND ir.path = '%s' AND ir.revision = '%s'",
       $repository['repo_id'], VERSIONCONTROL_OPERATION_COMMIT,
-      $file_revision->path, $file_revision->commit_id
+      $file_revision->path, $file_revision->revision
     ));
     if ($count > 0) {
       continue;
@@ -337,20 +337,20 @@ function _versioncontrol_git_log_process($repository, $file_revisions) {
       'current item' => array(
         'type' => VERSIONCONTROL_ITEM_FILE,
         'path' => $file_revision->path,
-        'commit_id' => $file_revision->commit_id,
+        'revision' => $file_revision->revision,
       ),
       'source items' => array(
         array(
           'type' => VERSIONCONTROL_ITEM_FILE,
           'path' => $file_revision->path,
-          'commit_id' => versioncontrol_git_get_previous_commit_id($repository['repo_id'], VERSIONCONTROL_OPERATION_COMMIT, $file_revision->path),
+          'revision' => versioncontrol_git_get_previous_revision($repository['repo_id'], VERSIONCONTROL_OPERATION_COMMIT, $file_revision->path),
         ),
       ),
       'git_specific' => array(
         'file_revision' => $file_revision, // Temporary.
         'lines_added' => $file_revision->lines_added,
         'lines_removed' => $file_revision->lines_removed,
-        'commit_id' => $file_revision->commit_id,
+        'revision' => $file_revision->revision,
       ),
     );
 
@@ -364,11 +364,11 @@ function _versioncontrol_git_log_process($repository, $file_revisions) {
       unset($commit_action['source items']);
     }
 
-    $commit_actions[$file_revision->commit_id][$file_revision->path] = $commit_action;
+    $commit_actions[$file_revision->revision][$file_revision->path] = $commit_action;
   }
 
   $commits = array();
-  foreach ($commit_actions as $commit_id => $commit_actions) {
+  foreach ($commit_actions as $revision => $commit_actions) {
     _versioncontrol_git_log_construct_commit($repository, $commit_actions, $commits);
   }
 
@@ -389,9 +389,9 @@ function _versioncontrol_git_log_process($repository, $file_revisions) {
  * 
  * @return string Previous commit id.
  */
-function versioncontrol_git_get_previous_commit_id($repo_id, $path, $op_id) {
+function versioncontrol_git_get_previous_revision($repo_id, $path, $op_id) {
   $result = db_result(db_query(
-    "SELECT ir.commit_id
+    "SELECT ir.revision
      FROM {versioncontrol_git_item_revisions} ir
       INNER JOIN {versioncontrol_operations} op
        ON ir.vc_op_id = op.vc_op_id

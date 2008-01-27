@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.module,v 1.4 2008/01/27 06:53:38 boombatower Exp $
+// $Id: versioncontrol_git.module,v 1.5 2008/01/27 22:26:52 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -168,7 +168,7 @@ function versioncontrol_git_get_commit_actions($commit) {
 
   $actions = array();
   $result = db_query('SELECT item_revision_id, action, type, path,
-                             commit_id, lines_added, lines_removed
+                             revision, lines_added, lines_removed
                       FROM {versioncontrol_git_item_revisions}
                       WHERE vc_op_id = %d', $commit['vc_op_id']);
 
@@ -185,7 +185,7 @@ function versioncontrol_git_get_commit_actions($commit) {
       $action['current item'] = array(
         'type' => $item_revision->type,
         'path' => $item_revision->path,
-        'revision' => $item_revision->commit_id,
+        'revision' => $item_revision->revision,
         'git_specific' => array(
           'item_revision_id' => $item_revision->item_revision_id,
           'selected_branch_id' => $commit['git_specific']['branch_id'],
@@ -194,7 +194,7 @@ function versioncontrol_git_get_commit_actions($commit) {
       );
     }
     if ($item_revision->action != VERSIONCONTROL_ACTION_ADDED) {
-      $source_revision = versioncontrol_git_get_previous_commit_id($commit['repository']['repo_id'], $item_revision->path, $commit['vc_op_id']);
+      $source_revision = versioncontrol_git_get_previous_revision($commit['repository']['repo_id'], $item_revision->path, $commit['vc_op_id']);
       $action['source items'] = array(array(
         'type' => $item_revision->type,
         'path' => $item_revision->path,
@@ -292,7 +292,7 @@ function versioncontrol_git_get_directory_item($operation) {
   $item = array(
     'type' => VERSIONCONTROL_ITEM_DIRECTORY,
     'path' => $operation['directory'],
-    'commit_id' => '',
+    'revision' => '',
     'git_specific' => array(
       'selected_op' => $operation,
     ),
@@ -528,25 +528,25 @@ function versioncontrol_git_commit($op, $commit, $commit_actions) {
   switch ($op) {
     case 'insert':
       foreach ($commit_actions as $path => $action) {
-        $commit_id = '';
+        $revision = '';
 
         // If available, get item type and revision from the contained items.
         if (isset($action['current item'])) {
           $type = $action['current item']['type'];
-          $commit_id = $action['current item']['commit_id'];
+          $revision = $action['current item']['revision'];
         }
         else { // no current item -> file has been deleted
           $type = VERSIONCONTROL_ITEM_FILE_DELETED;
-          $commit_id = $action['git_specific']['commit_id'];
+          $revision = $action['git_specific']['revision'];
         }
 
         $item_revision_id = db_next_id('{versioncontrol_git_item_revisions}_item_revision_id');
         db_query(
           "INSERT INTO {versioncontrol_git_item_revisions}
-           (item_revision_id, vc_op_id, type, path, commit_id,
+           (item_revision_id, vc_op_id, type, path, revision,
             action, lines_added, lines_removed)
            VALUES (%d, %d, %d, '%s', '%s', %d, %d, %d)",
-          $item_revision_id, $commit['vc_op_id'], $type, $path, $commit_id,
+          $item_revision_id, $commit['vc_op_id'], $type, $path, $revision,
           $action['action'], $action['git_specific']['lines_added'],
           $action['git_specific']['lines_removed']
         );
@@ -635,9 +635,9 @@ function versioncontrol_git_tag_operation($op, $tag, $tagged_items) {
     case 'insert':
       db_query(
         "INSERT INTO {versioncontrol_git_tag_operations}
-         (vc_op_id, commit_id)
+         (vc_op_id, revision)
          VALUES (%d, '%s')",
-         $tag['vc_op_id'], $tag['git_specific']['commit_id']
+         $tag['vc_op_id'], $tag['git_specific']['revision']
     );
     break;
 
