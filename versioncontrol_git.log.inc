@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.log.inc,v 1.5 2008/01/27 22:26:52 boombatower Exp $
+// $Id: versioncontrol_git.log.inc,v 1.6 2008/01/27 22:43:25 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -30,7 +30,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   $file_revisions = array();
 
   // Get branches.
-  $logs = _versioncontrol_git_log_exec($root, 'git branch', $temp_file); // Query branches.
+  $logs = _versioncontrol_git_log_exec($root, 'git branch -l', $temp_file); // Query branches.
   $branches = _versioncontrol_git_log_parse_branches($logs); // Parse output.
   if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
     fclose($logs);
@@ -56,7 +56,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   _versioncontrol_git_log_process($repository, $file_revisions);
 
   // Check tags.
-  $logs = _versioncontrol_git_log_exec($root, 'git tag', $temp_file); // Query tags.
+  $logs = _versioncontrol_git_log_exec($root, 'git tag -l', $temp_file); // Query tags.
   $tags = _versioncontrol_git_log_parse_tags($root, $logs); // Parse output.
   if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
     fclose($logs);
