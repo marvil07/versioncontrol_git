@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.admin.inc,v 1.2 2008/01/27 06:49:11 boombatower Exp $
+// $Id: versioncontrol_git.admin.inc,v 1.3 2008/01/27 06:53:38 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -15,9 +15,6 @@
 function versioncontrol_git_form_alter($form_id, &$form) {
   if ($form['#id'] == 'versioncontrol-repository-form' && $form['#vcs'] == 'git') {
     versioncontrol_git_repository_admin_form_alter($form_id, $form);
-  }
-  else if ($form['#id'] == 'versioncontrol-account-form' && $form['#vcs'] == 'git') {
-//    versioncontrol_git_account_form_alter($form_id, $form);
   }
 }
 
@@ -41,6 +38,7 @@ function versioncontrol_git_repository_admin_form_alter($form_id, &$form) {
     '#weight' => 10,
     '#options' => array(
       VERSIONCONTROL_GIT_UPDATE_CRON => t('Automatic log retrieval.'),
+      VERSIONCONTROL_GIT_UPDATE_XGIT => t('Use external script to insert data.'),
     ),
   );
 }
@@ -93,6 +91,9 @@ function versioncontrol_git_versioncontrol_alter_repository_list($vcs, $reposito
   $header[] = t('Last updated');
 
   foreach ($rows_by_repo_id as $repo_id => $row) {
+    if ($repositories[$repo_id]['git_specific']['update_method'] == VERSIONCONTROL_GIT_UPDATE_XGIT) {
+      $rows_by_repo_id[$repo_id][] = t('external script');
+    }
     if ($repositories[$repo_id]['git_specific']['update_method'] == VERSIONCONTROL_GIT_UPDATE_CRON) {
       $rows_by_repo_id[$repo_id][] = t('logs (!fetch)', array(
         '!fetch' => l(t('fetch now'), 'admin/project/versioncontrol-repositories/update/git/'. $repo_id)
