@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.module,v 1.2 2008/01/27 02:51:33 boombatower Exp $
+// $Id: versioncontrol_git.module,v 1.3 2008/01/27 02:57:31 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -350,26 +350,7 @@ function versioncontrol_git_get_commit_branches($commit) {
  *        version control system.)
  */
 function versioncontrol_git_get_branched_items($branch) {
-  $items = array();
-  $result = db_query('SELECT ir.item_revision_id, ir.type, ir.path, ir.revision
-                      FROM {versioncontrol_git_item_branch_points} ib
-                       INNER JOIN {versioncontrol_git_item_revisions} ir
-                        ON ib.item_revision_id = ir.item_revision_id
-                      WHERE ib.vc_op_id = %d', $branch['vc_op_id']);
-
-  while ($item_revision = db_fetch_object($result)) {
-    $items[] = array(
-      'type' => $item_revision->type,
-      'path' => $item_revision->path,
-      'revision' => $item_revision->revision,
-      'git_specific' => array(
-        'item_revision_id' => $item_revision->item_revision_id,
-        'selected_branch_id' => $branch['git_specific']['branch_id'],
-        'selected_op' => $branch,
-      ),
-    );
-  }
-  return $items;
+  return array(); // Branches affect whole repository.
 }
 
 /**
@@ -578,9 +559,6 @@ function versioncontrol_git_commit($op, $commit, $commit_actions) {
 
       while ($revision = db_fetch_object($result)) {
         db_query('DELETE FROM {versioncontrol_git_item_tags}
-                  WHERE item_revision_id = %d',
-                  $revision->item_revision_id);
-        db_query('DELETE FROM {versioncontrol_git_item_branch_points}
                   WHERE item_revision_id = %d',
                   $revision->item_revision_id);
       }
