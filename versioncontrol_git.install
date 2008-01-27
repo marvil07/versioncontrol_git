@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.install,v 1.3 2008/01/27 22:26:52 boombatower Exp $
+// $Id: versioncontrol_git.install,v 1.4 2008/01/27 22:47:11 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -24,10 +24,8 @@ function versioncontrol_git_install() {
 
       db_query("CREATE TABLE {versioncontrol_git_repositories} (
         repo_id int unsigned NOT NULL default 0,
-        modules varchar(255) NOT NULL default '',
         update_method tinyint unsigned NOT NULL default 0,
         updated int unsigned NOT NULL default 0,
-        run_as_user varchar(255) NOT NULL default '',
         PRIMARY KEY (repo_id)
       ) /*!40100 DEFAULT CHARACTER SET utf8 */");
 
@@ -73,10 +71,8 @@ function versioncontrol_git_install() {
 
       db_query("CREATE TABLE {versioncontrol_git_repositories} (
         repo_id int NOT NULL default 0,
-        modules varchar(255) NOT NULL default '',
         update_method smallint NOT NULL default 0,
         updated int NOT NULL default 0,
-        run_as_user varchar(255) NOT NULL default '',
         PRIMARY KEY (repo_id)
       )");
 

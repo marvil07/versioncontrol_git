@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.admin.inc,v 1.3 2008/01/27 06:53:38 boombatower Exp $
+// $Id: versioncontrol_git.admin.inc,v 1.4 2008/01/27 22:47:11 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -52,8 +52,6 @@ function versioncontrol_git_versioncontrol_extract_repository_data($form_values)
   if (!isset($form_values['versioncontrol_git'])) {
     return array();
   }
-  $modules = trim($form_values['modules']);
-  $modules = empty($modules) ? array() : explode(' ', $modules);
 
   return array(
     'git_specific' => array(
