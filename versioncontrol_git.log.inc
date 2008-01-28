@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.log.inc,v 1.6 2008/01/27 22:43:25 boombatower Exp $
+// $Id: versioncontrol_git.log.inc,v 1.7 2008/01/28 02:14:07 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -384,10 +384,10 @@ function _versioncontrol_git_log_process($repository, $file_revisions) {
 }
 
 /**
- * Get the previous commit id of file under version control,
+ * Get the previous revision (commit id) of file under version control,
  * given the repository id, path, and operation id.
  * 
- * @return string Previous commit id.
+ * @return string Previous revision (commit id).
  */
 function versioncontrol_git_get_previous_revision($repo_id, $path, $op_id) {
   $result = db_result(db_query(
