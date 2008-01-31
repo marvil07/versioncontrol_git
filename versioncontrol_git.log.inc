@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.log.inc,v 1.9 2008/01/31 04:37:22 boombatower Exp $
+// $Id: versioncontrol_git.log.inc,v 1.10 2008/01/31 05:39:38 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -431,7 +431,7 @@ function _versioncontrol_git_log_process($repository, $file_revisions) {
         array(
           'type' => VERSIONCONTROL_ITEM_FILE,
           'path' => $file_revision->path,
-          'revision' => versioncontrol_git_get_previous_revision($repository['repo_id'], VERSIONCONTROL_OPERATION_COMMIT, $file_revision->path),
+          'revision' => NULL, // Will be updated later.
         ),
       ),
       'git_specific' => array(
@@ -466,28 +466,60 @@ function _versioncontrol_git_log_process($repository, $file_revisions) {
   ksort($commits);
   foreach ($commits as $date => $date_commits) {
     foreach ($date_commits as $commit_info) {
+      // Record revision and source revision to database.
+      foreach ($commit_info->commit_actions as $path => $commit_action) {
+        // Update source revision.
+        $commit_action['source items'][0]['revision'] = versioncontrol_git_get_current_revision($repository['repo_id'], $commit_action['source items'][0]['path']);
+
+        if ($commit_action['action'] != VERSIONCONTROL_ACTION_ADDED &&
+            $commit_action['action'] != VERSIONCONTROL_ACTION_DELETED) {
+
+          db_query("INSERT INTO {versioncontrol_git_item_source_revisions} (revision, source_revision) VALUES ('%s', '%s')",
+            $commit_action['current item']['revision'],
+            $commit_action['source items'][0]['revision']);
+        }
+      }
+
       versioncontrol_insert_commit($commit_info->commit, $commit_info->commit_actions);
     }
   }
 }
 
 /**
+ * Get the current revision (commit id) of file under version control,
+ * given the repository id and path.
+ * 
+ * @return string Current revision (commit id).
+ */
+function versioncontrol_git_get_current_revision($repo_id, $path) {
+  $result = db_fetch_object(db_query(
+    "SELECT action, revision
+     FROM {versioncontrol_git_item_revisions} ir
+      INNER JOIN versioncontrol_operations op
+       ON ir.vc_op_id = op.vc_op_id
+     WHERE op.repo_id = %d AND ir.path = '%s'
+     ORDER BY ir.item_revision_id DESC
+     LIMIT 1",
+    $repo_id, $path
+  ));
+  if ($result !== FALSE && $result->action != VERSIONCONTROL_ACTION_DELETED) {
+    return $result->revision;
+  }
+  return NULL;
+}
+
+/**
  * Get the previous revision (commit id) of file under version control,
- * given the repository id, path, and operation id.
+ * given the repository id and path.
  * 
  * @return string Previous revision (commit id).
  */
-function versioncontrol_git_get_previous_revision($repo_id, $path, $op_id) {
+function versioncontrol_git_get_previous_revision($revision) {
   $result = db_result(db_query(
-    "SELECT ir.revision
-     FROM {versioncontrol_git_item_revisions} ir
-      INNER JOIN {versioncontrol_operations} op
-       ON ir.vc_op_id = op.vc_op_id
-     WHERE op.repo_id = %d AND ir.path = '%s'
-     AND op.date < (SELECT date FROM {versioncontrol_operations} WHERE vc_op_id = %d)
-     ORDER BY op.date DESC
-     LIMIT 1",
-    $repo_id, $path, $op_id
+    "SELECT source_revision
+     FROM {versioncontrol_git_item_source_revisions}
+     WHERE revision = '%s'",
+    $revision
   ));
   return ($result !== FALSE ? $result : NULL);
 }

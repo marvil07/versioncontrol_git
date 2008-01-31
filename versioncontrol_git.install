@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.install,v 1.5 2008/01/31 04:10:31 boombatower Exp $
+// $Id: versioncontrol_git.install,v 1.6 2008/01/31 05:39:38 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -66,6 +66,12 @@ function versioncontrol_git_install() {
         revision varchar(255) NOT NULL,
         PRIMARY KEY (last_commits_id)
       ) /*!40100 DEFAULT CHARACTER SET utf8 */");
+
+      db_query("CREATE TABLE {versioncontrol_git_item_source_revisions} (
+        revision VARCHAR(255) NOT NULL,
+        source_revision VARCHAR(255) NOT NULL,
+        PRIMARY KEY (revision)
+      )  /*!40100 DEFAULT CHARACTER SET utf8 */");
       break;
 
     case 'pgsql':
@@ -120,6 +126,12 @@ function versioncontrol_git_install() {
         revision varchar(255) NOT NULL,
         PRIMARY KEY (last_commits_id)
       )");
+
+      db_query("CREATE TABLE {versioncontrol_git_item_source_revisions} (
+        revision VARCHAR(255) NOT NULL,
+        source_revision VARCHAR(255) NOT NULL,
+        PRIMARY KEY (revision)
+      )");
       break;
   }
 }
@@ -147,4 +159,5 @@ function versioncontrol_git_uninstall() {
   db_query('DROP TABLE {versioncontrol_git_item_tags}');
   db_query('DROP TABLE {versioncontrol_git_tag_operations}');
   db_query('DROP TABLE {versioncontrol_git_latest_commits}');
+  db_query('DROP TABLE {versioncontrol_git_item_source_revisions}');
 }
