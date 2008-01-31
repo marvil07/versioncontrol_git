@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.module,v 1.8 2008/01/31 20:27:10 boombatower Exp $
+// $Id: versioncontrol_git.module,v 1.9 2008/01/31 20:32:18 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -52,14 +52,7 @@ function versioncontrol_git_versioncontrol_backends() {
 
       // A list of optional capabilities, in addition to the required retrieval
       // of detailed commit information.
-      'capabilities' => array(
-        // Able to cancel commits if the committer lacks permissions
-        // to commit to specific paths and/or branches.
-        VERSIONCONTROL_CAPABILITY_COMMIT_RESTRICTIONS,
-        // Able to cancel branch or tag assignments if the committer lacks
-        // permissions to create/update/delete those.
-        VERSIONCONTROL_CAPABILITY_BRANCH_TAG_RESTRICTIONS,
-      ),
+      'capabilities' => array(),
 
       // An array listing which tables should be managed by Version Control API
       // instead of doing it manually in the backend.
