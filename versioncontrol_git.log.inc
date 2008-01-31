@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.log.inc,v 1.8 2008/01/31 04:10:32 boombatower Exp $
+// $Id: versioncontrol_git.log.inc,v 1.9 2008/01/31 04:37:22 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -41,7 +41,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   $previous_count = 0;
   foreach ($latest_commits as $branch => $latest_commit) {
     // Generate either '[hash]..' or '..[branch]' or '[hash]..[branch]' as range specification for git log.
-    $range = $latest_commit ? ($latest_commit .'..') : '..';
+    $range = $latest_commit ? ($latest_commit .'..') : '';
     if (!in_array($branch, $obsolete_branches)) { // If the branch is obsolute then use it as the ending portion of the range.
       $range .= $branch;
     }
