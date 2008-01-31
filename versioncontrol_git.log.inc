@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.log.inc,v 1.7 2008/01/28 02:14:07 boombatower Exp $
+// $Id: versioncontrol_git.log.inc,v 1.8 2008/01/31 04:10:32 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -17,55 +17,76 @@
  *   failed for whatever reason.
  */
 function _versioncontrol_git_log_update_repository(&$repository) {
-  $root = escapeshellcmd($repository['root']);
+  chdir($root = escapeshellcmd($repository['root'])); // Set working directory to root.
+  $latest_commits = _versioncontrol_git_get_lastest_commits($repository); // Get latest commits from database.
+  $branches = _versioncontrol_git_log_get_branches(); // Get the list of current branches from Git.
 
-  // Prepare the "since" time argument for Git, and remember the
-  // current time for the "updated" value that is stored later on.
-  $date = ($repository['git_specific']['updated'] > 0)
-          ? '--since="'. gmdate('D M j G:i:s Y O', $repository['git_specific']['updated']) .'"'
-          : '';
-  $date_updated = time();
-
-  $temp_file = '';
-  $file_revisions = array();
-
-  // Get branches.
-  $logs = _versioncontrol_git_log_exec($root, 'git branch -l', $temp_file); // Query branches.
-  $branches = _versioncontrol_git_log_parse_branches($logs); // Parse output.
-  if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
-    fclose($logs);
-    unlink($temp_file);
+  // Check for any branches that are no longer part of the repository.
+  $obsolete_branches = array();
+  foreach ($latest_commits as $branch => $latest_commit) {
+    if (!in_array($branch, $branches)) {
+      $obsolete_branches[] = $branch;
+    }
   }
 
-  // Call Git in order to get the raw logs for each branch.
+  // Check for new branches.
   foreach ($branches as $branch) {
-    $command = "$context git log $branch --numstat --summary --pretty=medium $date";
-    $logs = _versioncontrol_git_log_exec($root, $command, $temp_file);
-    _versioncontrol_git_log_parse($repository, $logs, $file_revisions, $branch); // Parse the info from the raw output.
+    if (!array_key_exists($branch, $latest_commits)) {
+      $latest_commits[$branch] = FALSE; // Add to list so it will be processed later.
+    }
+  }
 
-    if (variable_get('versioncontrol_git_log_use_file', 1)) {
-      fclose($logs);
-      unlink($temp_file);
+  // Record new commits.
+  $file_revisions = array();
+  $previous_count = 0;
+  foreach ($latest_commits as $branch => $latest_commit) {
+    // Generate either '[hash]..' or '..[branch]' or '[hash]..[branch]' as range specification for git log.
+    $range = $latest_commit ? ($latest_commit .'..') : '..';
+    if (!in_array($branch, $obsolete_branches)) { // If the branch is obsolute then use it as the ending portion of the range.
+      $range .= $branch;
     }
 
-    watchdog('special', $command);
+    // Get logs from Git.
+    _versioncontrol_git_log_get_commits($repository, $file_revisions, $branch, $range);
+
+    // If new revision set as latest revision.
+    if ($previous_count < count($file_revisions)) {
+      $latest_commits[$branch] = $file_revisions[$previous_count]->revision;
+      $previous_count = count($file_revisions);
+    }
+
+    $branch_id = db_result(db_query("SELECT branch_id FROM {versioncontrol_branches} WHERE repo_id = %d AND branch_name = '%s'",
+      $repository['repo_id'], $branch));
+
+    if (!empty($branch_id)) {
+      db_query('DELETE FROM {versioncontrol_git_latest_commits} WHERE branch_id = %d', $branch_id);
+      db_query("INSERT INTO {versioncontrol_git_latest_commits} (branch_id, revision) VALUES (%d, '%s')",
+        $branch_id, $latest_commits[$branch]);
+    }
   }
 
   // Having retrieved the file revisions, insert those into the database
   // as Version Control API commits.
   _versioncontrol_git_log_process($repository, $file_revisions);
 
-  // Check tags.
-  $logs = _versioncontrol_git_log_exec($root, 'git tag -l', $temp_file); // Query tags.
-  $tags = _versioncontrol_git_log_parse_tags($root, $logs); // Parse output.
-  if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
-    fclose($logs);
-    unlink($temp_file);
+  // Delete obsolete branches.
+  foreach ($obsolete_branches as $branch) {
+    $branch_id = db_result(db_query("SELECT branch_id FROM {versioncontrol_branches} WHERE repo_id = %d AND branch_name = '%s'"),
+      $repository['repo_id'], $branch);
+
+    if (!empty($branch_id)) {
+      db_query('DELETE FROM {versioncontrol_git_latest_commits} WHERE branch_id = %d', $branch_id);
+      db_query('DELETE FROM {versioncontrol_git_commits} WHERE branch_id = %d', $branch_id);
+      versioncontrol_delete_branch($repository['repo_id'], $branch);
+    }
   }
+
+  // Check tags.
+  $tags = _versioncontrol_git_log_get_tags();
   _versioncontrol_git_log_process_tags($repository, $tags);
 
-  // Everything's done, remember the time when we updated the log (= now).
-  $repository['git_specific']['updated'] = $date_updated;
+  // Update repository updated field.
+  $repository['git_specific']['updated'] = time();
   db_query('UPDATE {versioncontrol_git_repositories}
             SET updated = %d WHERE repo_id = %d',
             $repository['git_specific']['updated'], $repository['repo_id']);
@@ -73,29 +94,64 @@ function _versioncontrol_git_log_update_repository(&$repository) {
 }
 
 /**
+ * Get an array containing branch name for key and the latest recorded commit
+ * revision hash.
+ */
+function _versioncontrol_git_get_lastest_commits($repository) {
+  $result = db_query('SELECT *
+    FROM {versioncontrol_git_latest_commits} c
+     INNER JOIN {versioncontrol_branches} b
+      ON c.branch_id = b.branch_id
+    WHERE b.repo_id = %d',
+    $repository['repo_id']);
+
+  $latest_commits = array();
+  while ($latest_commit = db_fetch_object($result)) {
+    $latest_commits[$latest_commit->branch_name] = $latest_commit->revision;
+  }
+  return $latest_commits;
+}
+
+/**
  * Execute a Git command using the root context and the command to be executed.
  * 
- * @param string $root Root directory to execute command from.
  * @param string $command Command to execute.
  * @param reference $temp_file Reference to temporaray file.
  * @return mixed Logged output from the command in either array of file pointer form.
  */
-function _versioncontrol_git_log_exec($root, $command, &$temp_file) {
-  $exec = "cd $root; $command";
+function _versioncontrol_git_log_exec($command, &$temp_file) {
   if (variable_get('versioncontrol_git_log_use_file', 1)) {
     $temp_dir = variable_get('file_directory_temp', (PHP_OS == 'WINNT' ? 'c:\\windows\\temp' : '/tmp'));
     $temp_file = $temp_dir .'/git-'. rand();
-    exec("$exec > $temp_file");
+    exec("$command > $temp_file");
     $logs = fopen($temp_file, 'r');
   }
   else {
     $logs = array();
-    exec($exec, $logs);
+    exec($command, $logs);
     reset($logs); // Reset the array pointer, so that we can use next().
   }
   return $logs;
 }
 
+/**
+ * Get branches from Git using 'branch -l' command.
+ * 
+ * @return array List of branches.
+ */
+function _versioncontrol_git_log_get_branches() {
+  $logs = _versioncontrol_git_log_exec('git branch -l', $temp_file); // Query branches.
+  $branches = _versioncontrol_git_log_parse_branches($logs); // Parse output.
+  if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
+    fclose($logs);
+    unlink($temp_file);
+  }
+  return $branches;
+}
+
+/**
+ * Parse the branch list output from Git.
+ */
 function _versioncontrol_git_log_parse_branches(&$logs) {
   // If the log was retrieved by taking the return value of exec(), we've
   // got an array and navigate it via next(). If we stored the log in a
@@ -111,7 +167,23 @@ function _versioncontrol_git_log_parse_branches(&$logs) {
   return $branches;
 }
 
-function _versioncontrol_git_log_parse_tags($root, &$logs) {
+/**
+ * Get tags from Git using 'tag -l' command.
+ */
+function _versioncontrol_git_log_get_tags() {
+  $logs = _versioncontrol_git_log_exec('git tag -l', $temp_file); // Query tags.
+  $tags = _versioncontrol_git_log_parse_tags($logs); // Parse output.
+  if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
+    fclose($logs);
+    unlink($temp_file);
+  }
+  return $tags;
+}
+
+/**
+ * Parse the tag list output from Git.
+ */
+function _versioncontrol_git_log_parse_tags(&$logs) {
   // If the log was retrieved by taking the return value of exec(), we've
   // got an array and navigate it via next(). If we stored the log in a
   // temporary file, $logs is a file handle that we need to fgets() instead.
@@ -125,7 +197,7 @@ function _versioncontrol_git_log_parse_tags($root, &$logs) {
 
       // Query most recent commit in tag.
       $temp_file = '';
-      $logs2 = _versioncontrol_git_log_exec($root, 'git log '. $tag->name .' -n 1', $temp_file);
+      $logs2 = _versioncontrol_git_log_exec('git log '. $tag->name .' -n 1', $temp_file);
 
       if (preg_match('/^commit (.+)$/', $next($logs2), $matches)) {
         $tag->revision = $matches[1];
@@ -191,6 +263,22 @@ function _versioncontrol_git_log_process_tags($repository, $tags) {
       versioncontrol_insert_tag_operation($tag_actions_info[0], $tag_actions_info[1]);
     }
   }
+}
+
+/**
+ * Get all commits from Git using 'git log' command.
+ */
+function _versioncontrol_git_log_get_commits($repository, &$file_revisions, $branch, $range) {
+  $command = "git log $range --numstat --summary --pretty=medium";
+  $logs = _versioncontrol_git_log_exec($command, $temp_file);
+  _versioncontrol_git_log_parse($repository, $logs, $file_revisions, $branch); // Parse the info from the raw output.
+
+  if (variable_get('versioncontrol_git_log_use_file', 1)) {
+    fclose($logs);
+    unlink($temp_file);
+  }
+
+  watchdog('special', $command);
 }
 
 /**
