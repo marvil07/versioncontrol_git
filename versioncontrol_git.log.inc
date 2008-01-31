@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.log.inc,v 1.12 2008/01/31 19:53:26 boombatower Exp $
+// $Id: versioncontrol_git.log.inc,v 1.13 2008/01/31 19:59:31 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -42,7 +42,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   foreach ($latest_commits as $branch => $latest_commit) {
     // Generate either '[hash]..' or '[branch]' or '[hash]..[branch]' as range specification for git log.
     $range = $latest_commit ? ($latest_commit .'..') : '';
-    if (!in_array($branch, $obsolete_branches)) { // If the branch is obsolute then use it as the ending portion of the range.
+    if (!in_array($branch, $obsolete_branches)) { // If the branch is obsolete then use it as the ending portion of the range.
       $range .= $branch;
     }
 
@@ -508,12 +508,11 @@ function versioncontrol_git_get_current_revision($repo_id, $path) {
 }
 
 /**
- * Get the previous revision (commit id) of file under version control,
- * given the repository id and path.
+ * Get the source revision (commit id) of a specified revision.
  * 
- * @return string Previous revision (commit id).
+ * @return string Source revision (commit id).
  */
-function versioncontrol_git_get_previous_revision($revision) {
+function versioncontrol_git_get_source_revision($revision) {
   $result = db_result(db_query(
     "SELECT source_revision
      FROM {versioncontrol_git_item_source_revisions}
