@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.module,v 1.7 2008/01/31 19:59:31 boombatower Exp $
+// $Id: versioncontrol_git.module,v 1.8 2008/01/31 20:27:10 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -646,5 +646,51 @@ function versioncontrol_git_tag_operation($op, $tag, $tagged_items) {
         WHERE vc_op_id = %d',
       $tag['vc_op_id']);
     break;
+  }
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_repository():
+ * Manage (insert, update or delete) additional FakeVCS repository data
+ * in the database.
+ *
+ * This function is optional for backend modules to implement. If you don't
+ * need custom repository data (or you let the Version Control API manage it),
+ * just don't implement it.
+ *
+ * @param $op
+ *   Either 'insert' when the repository has just been created, or 'update'
+ *   when repository name, root, URL backend or module specific data change,
+ *   or 'delete' if it will be deleted after this function has been called.
+ *
+ * @param $repository
+ *   The repository array containing the repository. It's a single
+ *   repository array like the one returned by versioncontrol_get_repository(),
+ *   so it consists of the following elements:
+ *
+ *   - 'repo_id': The unique repository id.
+ *   - 'name': The user-visible name of the repository.
+ *   - 'vcs': The unique string identifier of the version control system
+ *        that powers this repository.
+ *   - 'root': The root directory of the repository. In most cases,
+ *        this will be a local directory (e.g. '/var/repos/drupal'),
+ *        but it may also be some specialized string for remote repository
+ *        access. How this string may look like depends on the backend.
+ *   - 'authorization_method': The string identifier of the repository's
+ *        authorization method, that is, how users may register accounts
+ *        in this repository. Modules can provide their own methods
+ *        by implementing hook_versioncontrol_authorization_methods().
+ *   - 'url_backend': The prefix (excluding the trailing underscore)
+ *        for URL backend retrieval functions.
+ *   - '[xxx]_specific': An array of VCS specific additional repository
+ *        information. How this array looks like is defined by the
+ *        corresponding backend module (versioncontrol_[xxx]).
+ */
+function versioncontrol_git_repository($op, $repository) {
+  if ($op == 'delete') {
+    db_query('DELETE FROM {versioncontrol_git_item_source_revisions}
+      WHERE repo_id = %d', $repository['repo_id']);
+    db_query('DELETE FROM {versioncontrol_git_latest_commits}
+      WHERE repo_id = %d', $repository['repo_id']);
   }
 }

@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.log.inc,v 1.13 2008/01/31 19:59:31 boombatower Exp $
+// $Id: versioncontrol_git.log.inc,v 1.14 2008/01/31 20:27:10 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -59,8 +59,8 @@ function _versioncontrol_git_log_update_repository(&$repository) {
 
     if ($branch_id !== NULL) {
       db_query('DELETE FROM {versioncontrol_git_latest_commits} WHERE branch_id = %d', $branch_id);
-      db_query("INSERT INTO {versioncontrol_git_latest_commits} (branch_id, revision) VALUES (%d, '%s')",
-        $branch_id, $latest_commits[$branch]);
+      db_query("INSERT INTO {versioncontrol_git_latest_commits} (repo_id, branch_id, revision) VALUES (%d, %d, '%s')",
+        $repository['repo_id'], $branch_id, $latest_commits[$branch]);
     }
   }
 
@@ -473,9 +473,10 @@ function _versioncontrol_git_log_process($repository, $file_revisions) {
         if ($commit_action['action'] != VERSIONCONTROL_ACTION_ADDED &&
             $commit_action['action'] != VERSIONCONTROL_ACTION_DELETED) {
 
-          db_query("INSERT INTO {versioncontrol_git_item_source_revisions} (revision, source_revision) VALUES ('%s', '%s')",
+          db_query("INSERT INTO {versioncontrol_git_item_source_revisions} (revision, source_revision, repo_id) VALUES ('%s', '%s', %d)",
             $commit_action['current item']['revision'],
-            $commit_action['source items'][0]['revision']);
+            $commit_action['source items'][0]['revision'],
+            $repository['repo_id']);
         }
       }
 
