@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.log.inc,v 1.11 2008/01/31 19:47:34 boombatower Exp $
+// $Id: versioncontrol_git.log.inc,v 1.12 2008/01/31 19:53:26 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -55,10 +55,9 @@ function _versioncontrol_git_log_update_repository(&$repository) {
       $previous_count = count($file_revisions);
     }
 
-    $branch_id = db_result(db_query("SELECT branch_id FROM {versioncontrol_branches} WHERE repo_id = %d AND branch_name = '%s'",
-      $repository['repo_id'], $branch));
+    $branch_id = versioncontrol_get_branch_id($branch, $repository['repo_id']);
 
-    if (!empty($branch_id)) {
+    if ($branch_id !== NULL) {
       db_query('DELETE FROM {versioncontrol_git_latest_commits} WHERE branch_id = %d', $branch_id);
       db_query("INSERT INTO {versioncontrol_git_latest_commits} (branch_id, revision) VALUES (%d, '%s')",
         $branch_id, $latest_commits[$branch]);
