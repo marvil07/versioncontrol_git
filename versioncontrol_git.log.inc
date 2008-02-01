@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.log.inc,v 1.15 2008/02/01 01:18:54 boombatower Exp $
+// $Id: versioncontrol_git.log.inc,v 1.16 2008/02/01 01:20:53 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -158,7 +158,7 @@ function _versioncontrol_git_log_parse_branches(&$logs) {
 
   $branches = array();
   while (($line = $next($logs)) !== FALSE) {
-    if (preg_match('/([^*\s]+)$/', $line, $matches)) { // Remove whitespace and ensure that the active module symbol '*' doesn't get included.
+    if (preg_match('/([^\s]+)$/', $line, $matches)) { // Remove whitespace and ensure that the active module symbol '*' doesn't get included.
       $branches[] = $matches[1];
     }
   }
