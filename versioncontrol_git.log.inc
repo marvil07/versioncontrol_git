@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.log.inc,v 1.20 2008/02/01 05:53:58 boombatower Exp $
+// $Id: versioncontrol_git.log.inc,v 1.21 2008/02/01 06:00:42 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -59,8 +59,10 @@ function _versioncontrol_git_log_update_repository(&$repository) {
 
     if ($branch_id !== NULL) {
       db_query('DELETE FROM {versioncontrol_git_latest_commits} WHERE branch_id = %d', $branch_id);
-      db_query("INSERT INTO {versioncontrol_git_latest_commits} (repo_id, branch_id, revision) VALUES (%d, %d, '%s')",
-        $repository['repo_id'], $branch_id, $latest_commits[$branch]);
+
+      $lastest_commits_id = db_next_id('{versioncontrol_git_latest_commits}_lastest_commits_id');
+      db_query("INSERT INTO {versioncontrol_git_latest_commits} (lastest_commits_id, repo_id, branch_id, revision) VALUES (%d, %d, %d, '%s')",
+        $lastest_commits_id, $repository['repo_id'], $branch_id, $latest_commits[$branch]);
     }
   }
 
@@ -359,17 +361,17 @@ function _versioncontrol_git_log_parse($repository, &$logs, &$file_revisions, $b
           $duplicates[] = count($revisions) - 1;
         }
         else {
-	        $file_revision = new StdClass();
-	        $file_revision->revision = $revision;
-	        $file_revision->username = $author;
-	        $file_revision->date = strtotime($date);
-	        $file_revision->message = $message;
-	        $file_revision->lines_added = $matches[1];
-	        $file_revision->lines_removed = $matches[2];
-	        $file_revision->path = '/'. $matches[3];
-	        $file_revision->action = VERSIONCONTROL_ACTION_MODIFIED;
-	        $file_revision->branches = array($branch);
-	        $revisions[] = $file_revision;
+          $file_revision = new StdClass();
+          $file_revision->revision = $revision;
+          $file_revision->username = $author;
+          $file_revision->date = strtotime($date);
+          $file_revision->message = $message;
+          $file_revision->lines_added = $matches[1];
+          $file_revision->lines_removed = $matches[2];
+          $file_revision->path = '/'. $matches[3];
+          $file_revision->action = VERSIONCONTROL_ACTION_MODIFIED;
+          $file_revision->branches = array($branch);
+          $revisions[] = $file_revision;
         }
       }
       else {
@@ -382,7 +384,7 @@ function _versioncontrol_git_log_parse($repository, &$logs, &$file_revisions, $b
     do {
       if (preg_match('/^ (\S+) (\S+) (\S+) (.+)$/', $line, $matches)) { // Ensure that same file, they should be in same order.
         if ($revisions[$i] !== FALSE) {
-        	$revisions[$i]->action = ($matches[1] == 'create' ? VERSIONCONTROL_ACTION_ADDED : VERSIONCONTROL_ACTION_DELETED);
+          $revisions[$i]->action = ($matches[1] == 'create' ? VERSIONCONTROL_ACTION_ADDED : VERSIONCONTROL_ACTION_DELETED);
         }
         $i++;
       }
@@ -394,7 +396,7 @@ function _versioncontrol_git_log_parse($repository, &$logs, &$file_revisions, $b
 
     // Remove duplicate place holders.
     foreach ($duplicates as $duplicate) {
-    	unset($revisions[$duplicate]);
+      unset($revisions[$duplicate]);
     }
 
     $file_revisions = array_merge($file_revisions, $revisions);
@@ -406,12 +408,12 @@ function _versioncontrol_git_log_parse($repository, &$logs, &$file_revisions, $b
  * the specified revision hash.
  */
 function _versioncontrol_git_log_get_duplicate_revision(&$file_revisions, $revision) {
-	foreach ($file_revisions as $file_revision) {
-		if ($file_revision->revision == $revision) {
-			return $file_revision;
-		}
-	}
-	return NULL;
+  foreach ($file_revisions as $file_revision) {
+    if ($file_revision->revision == $revision) {
+      return $file_revision;
+    }
+  }
+  return NULL;
 }
 
 /**
@@ -442,16 +444,16 @@ function _versioncontrol_git_log_process($repository, $file_revisions) {
     if ($vc_op_id) {
       // Check to make it has been saved to all branches.
       foreach ($file_revision->branches as $branch) {
-      	$branch_id = versioncontrol_get_branch_id($branch, $repository['repo_id']);
-      	$count = db_result(db_query("SELECT COUNT(*)
+        $branch_id = versioncontrol_get_branch_id($branch, $repository['repo_id']);
+        $count = db_result(db_query("SELECT COUNT(*)
           FROM {versioncontrol_git_commit_branches}
           WHERE vc_op_id = %d AND branch_id = %d",
           $vc_op_id, $branch_id));
 
         if ($count == 0) { // Add to branch.
-         	$commit_branch_id = db_next_id('{versioncontrol_git_commit_branches}_commit_branches_id');
-         	db_query("INSERT INTO {versioncontrol_git_commit_branches} (commit_branches_id, vc_op_id, branch_id, repo_id) VALUES (%d, %d, %d, %d)",
-         	  $commit_branch_id, $vc_op_id, $branch_id, $repository['repo_id']);
+           $commit_branch_id = db_next_id('{versioncontrol_git_commit_branches}_commit_branches_id');
+           db_query("INSERT INTO {versioncontrol_git_commit_branches} (commit_branches_id, vc_op_id, branch_id, repo_id) VALUES (%d, %d, %d, %d)",
+             $commit_branch_id, $vc_op_id, $branch_id, $repository['repo_id']);
         }
       }
       continue;
