@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.log.inc,v 1.14 2008/01/31 20:27:10 boombatower Exp $
+// $Id: versioncontrol_git.log.inc,v 1.15 2008/02/01 01:18:54 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -55,7 +55,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
       $previous_count = count($file_revisions);
     }
 
-    $branch_id = versioncontrol_get_branch_id($branch, $repository['repo_id']);
+    $branch_id = versioncontrol_ensure_branch($branch, $repository['repo_id']);
 
     if ($branch_id !== NULL) {
       db_query('DELETE FROM {versioncontrol_git_latest_commits} WHERE branch_id = %d', $branch_id);
@@ -70,8 +70,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
 
   // Delete obsolete branches.
   foreach ($obsolete_branches as $branch) {
-    $branch_id = db_result(db_query("SELECT branch_id FROM {versioncontrol_branches} WHERE repo_id = %d AND branch_name = '%s'"),
-      $repository['repo_id'], $branch);
+    $branch_id = versioncontrol_get_branch_id($branch, $repository['repo_id']);
 
     if (!empty($branch_id)) {
       db_query('DELETE FROM {versioncontrol_git_latest_commits} WHERE branch_id = %d', $branch_id);
@@ -351,19 +350,27 @@ function _versioncontrol_git_log_parse($repository, &$logs, &$file_revisions, $b
 
     // Read file line revisions.
     $revisions = array();
+    $duplicates = array();
     while (($line = $next($logs)) !== FALSE) {
       if (is_numeric($line[0]) && preg_match('/^(\S+)'."\t".'(\S+)'."\t".'(.+)$/', $line, $matches)) { // Begins with num lines added and matches expression.
-        $file_revision = new StdClass();
-        $file_revision->revision = $revision;
-        $file_revision->username = $author;
-        $file_revision->date = strtotime($date);
-        $file_revision->message = $message;
-        $file_revision->lines_added = $matches[1];
-        $file_revision->lines_removed = $matches[2];
-        $file_revision->path = '/'. $matches[3];
-        $file_revision->action = VERSIONCONTROL_ACTION_MODIFIED;
-        $file_revision->branch = $branch;
-        $revisions[] = $file_revision;
+        if (($file_revision = _versioncontrol_git_log_get_duplicate_revision($file_revisions, $revision)) !== NULL) {
+          $file_revision->branches[] = $branch; // Add branch.
+          $revisions[] = FALSE;
+          $duplicates[] = count($revisions) - 1;
+        }
+        else {
+	        $file_revision = new StdClass();
+	        $file_revision->revision = $revision;
+	        $file_revision->username = $author;
+	        $file_revision->date = strtotime($date);
+	        $file_revision->message = $message;
+	        $file_revision->lines_added = $matches[1];
+	        $file_revision->lines_removed = $matches[2];
+	        $file_revision->path = '/'. $matches[3];
+	        $file_revision->action = VERSIONCONTROL_ACTION_MODIFIED;
+	        $file_revision->branches = array($branch);
+	        $revisions[] = $file_revision;
+        }
       }
       else {
         break;
@@ -374,7 +381,9 @@ function _versioncontrol_git_log_parse($repository, &$logs, &$file_revisions, $b
     $i = 0;
     do {
       if (preg_match('/^ (\S+) (\S+) (\S+) (.+)$/', $line, $matches)) { // Ensure that same file, they should be in same order.
-        $revisions[$i]->action = ($matches[1] == 'create' ? VERSIONCONTROL_ACTION_ADDED : VERSIONCONTROL_ACTION_DELETED);
+        if ($revisions[$i] !== FALSE) {
+        	$revisions[$i]->action = ($matches[1] == 'create' ? VERSIONCONTROL_ACTION_ADDED : VERSIONCONTROL_ACTION_DELETED);
+        }
         $i++;
       }
       else {
@@ -383,8 +392,22 @@ function _versioncontrol_git_log_parse($repository, &$logs, &$file_revisions, $b
     }
     while (($line = $next($logs)) !== FALSE);
 
+    // Remove duplicate place holders.
+    foreach ($duplicates as $duplicate) {
+    	unset($revisions[$duplicate]);
+    }
+
     $file_revisions = array_merge($file_revisions, $revisions);
   } // Loop to the next revision.
+}
+
+function _versioncontrol_git_log_get_duplicate_revision(&$file_revisions, $revision) {
+	foreach ($file_revisions as $file_revision) {
+		if ($file_revision->revision == $revision) {
+			return $file_revision;
+		}
+	}
+	return NULL;
 }
 
 /**
@@ -402,8 +425,8 @@ function _versioncontrol_git_log_process($repository, $file_revisions) {
 
   foreach ($file_revisions as $file_revision) {
     // Don't insert the same revision twice.
-    $count = db_result(db_query(
-      "SELECT COUNT(*)
+    $vc_op_id = db_result(db_query(
+      "SELECT op.vc_op_id
        FROM {versioncontrol_git_item_revisions} ir
         INNER JOIN {versioncontrol_operations} op
          ON ir.vc_op_id = op.vc_op_id
@@ -412,7 +435,20 @@ function _versioncontrol_git_log_process($repository, $file_revisions) {
       $repository['repo_id'], VERSIONCONTROL_OPERATION_COMMIT,
       $file_revision->path, $file_revision->revision
     ));
-    if ($count > 0) {
+    if ($vc_op_id) {
+      // Check to make it has been saved to all branches.
+      foreach ($file_revision->branches as $branch) {
+      	$branch_id = versioncontrol_get_branch_id($branch, $repository['repo_id']);
+      	$count = db_result(db_query("SELECT COUNT(*)
+          FROM {versioncontrol_git_commit_branches}
+          WHERE vc_op_id = %d AND branch_id = %d",
+          $vc_op_id, $branch_id));
+
+        if ($count == 0) { // Add to branch.
+         	db_query("INSERT INTO {versioncontrol_git_commit_branches} (vc_op_id, branch_id) VALUES (%d, %d)",
+         	  $vc_op_id, $branch_id);
+        }
+      }
       continue;
     }
 
@@ -543,12 +579,15 @@ function _versioncontrol_git_log_construct_commit($repository, $commit_actions, 
     }
     $username = $file_revision->username;
     $message = $file_revision->message;
-    $branch_name = $file_revision->branch;
+    $branches = $file_revision->branches;
   }
 
   // Get the branch id, and insert the branch into the database
   // if it doesn't exist yet.
-  $branch_id = versioncontrol_ensure_branch($branch_name, $repository['repo_id']);
+  $branch_ids = array();
+  foreach ($branches as $branch) {
+    $branch_ids[] = versioncontrol_ensure_branch($branch, $repository['repo_id']);
+  }
 
   // Yay, we have all commit actions and all information. Ready to go!
   $commit = array(
@@ -558,7 +597,7 @@ function _versioncontrol_git_log_construct_commit($repository, $commit_actions, 
     'message' => $message,
     'revision' => '',
     'git_specific' => array(
-      'branch_id' => $branch_id,
+      'branch_ids' => $branch_ids,
     ),
   );
 

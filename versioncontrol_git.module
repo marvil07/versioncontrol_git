@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.module,v 1.9 2008/01/31 20:32:18 boombatower Exp $
+// $Id: versioncontrol_git.module,v 1.10 2008/02/01 01:18:54 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -62,11 +62,6 @@ function versioncontrol_git_versioncontrol_backends() {
         // {versioncontrol_git_repositories} and versioncontrol_get_repositories()
         // will automatically fetch it from there.
         VERSIONCONTROL_FLAG_AUTOADD_REPOSITORIES,
-        // versioncontrol_insert_commit() will automatically insert
-        // array elements from $commit['git_specific'] into
-        // {versioncontrol_git_commits} and versioncontrol_get_commits()
-        // will automatically fetch it from there.
-        VERSIONCONTROL_FLAG_AUTOADD_COMMITS,
       ),
     ),
   );
@@ -111,6 +106,55 @@ function versioncontrol_git_cron() {
       _versioncontrol_git_update_repository($repository);
     }
   }
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_alter_commits():
+ * Add VCS specific repository data into a $commit['[xxx]_specific'] array,
+ * and/or unset commits that don't match VCS specific filter constraints.
+ * By convention, this function only adds data in this specific element
+ * and doesn't modify other parts of the commit array.
+ *
+ * Version Control API doesn't filter commits by backend before passing them
+ * to this function, so make sure you check each $commit['repository']['vcs']
+ * property before messing with this specific commit.
+ *
+ * Also, this function is optional for backend modules to implement. If you
+ * don't need custom commit additions or constraints, just don't implement it.
+ *
+ * @param $commits
+ *   The unfiltered commits retrieved by versioncontrol_get_commits(), and
+ *   even the '[xxx]_specific' arrays already exist. (If the
+ *   VERSIONCONTROL_FLAG_AUTOADD_COMMITS flag has been set by this module,
+ *   it may even be filled with values already.)
+ * @param $fakevcs_specific_constraints
+ *   An array of FakeVCS specific filter constraints which were passed to
+ *   versioncontrol_get_commits(). Say, if FakeVCS supported modules like
+ *   the CVS ones, the array would maybe contain a 'modules' constraint
+ *   for filtering by module.
+ */
+function versioncontrol_git_alter_commits(&$commits, $fakevcs_specific_constraints = array()) {
+  foreach ($commits as $key => $commit) {
+    // Disregard commits from other backends.
+    if ($commit['repository']['vcs'] != 'git') {
+      continue;
+    }
+
+    $additions = array();
+
+    // Get revision.
+    $additions['revision'] = db_result(db_query('SELECT revision FROM {versioncontrol_git_item_revisions} WHERE vc_op_id = %d', $commit['vc_op_id']));
+
+    // Get branches.
+    $result = db_query('SELECT branch_id FROM {versioncontrol_git_commit_branches} WHERE vc_op_id = %d', $commit['vc_op_id']);
+    while ($branch = db_fetch_object($result)) {
+      $additions['branch_ids'][] = $branch->branch_id;
+    }
+
+    // Merge the additions into the existing commit array.
+    $commits[$key]['git_specific'] = array_merge($commit['git_specific'], $additions);
+  }
+//  var_dump($commits);
 }
 
 /**
@@ -181,7 +225,7 @@ function versioncontrol_git_get_commit_actions($commit) {
         'revision' => $item_revision->revision,
         'git_specific' => array(
           'item_revision_id' => $item_revision->item_revision_id,
-          'selected_branch_id' => $commit['git_specific']['branch_id'],
+          'selected_branch_ids' => $commit['git_specific']['branch_ids'],
           'selected_op' => $commit,
         ),
       );
@@ -194,7 +238,7 @@ function versioncontrol_git_get_commit_actions($commit) {
         'revision' => isset($source_revision) ? $source_revision : '',
         'git_specific' => array(
           'item_revision_id' => $item_revision->item_revision_id,
-          'selected_branch_id' => $commit['git_specific']['branch_id'],
+          'selected_branch_ids' => $commit['git_specific']['branch_ids'],
           'selected_op' => $commit,
         ),
       ));
@@ -202,6 +246,7 @@ function versioncontrol_git_get_commit_actions($commit) {
 
     $actions[$item_revision->path] = $action;
   }
+//  var_dump($actions);
 
   return $actions;
 }
@@ -290,8 +335,9 @@ function versioncontrol_git_get_directory_item($operation) {
       'selected_op' => $operation,
     ),
   );
-  if (isset($operation['git_specific']['branch_id'])) { // It's a commit or branch.
-    $item['git_specific']['selected_branch_id'] = $operation['git_specific']['branch_id'];
+
+  if (isset($operation['git_specific']['branch_ids'])) { // It's a commit or branch.
+    $item['git_specific']['selected_branch_ids'] = $operation['git_specific']['branch_ids'];
   }
   return $item;
 }
@@ -302,19 +348,20 @@ function versioncontrol_git_get_directory_item($operation) {
  *
  * @return
  *   An array of strings that identify a branch in the respective repository,
- *   or an empty array if no branches were affected at all. (For Git, there
- *   should always be a exactly one branch in the resulting array.)
+ *   or an empty array if no branches were affected at all.
  */
 function versioncontrol_git_get_commit_branches($commit) {
-  if (!isset($commit['git_specific']['branch_id'])) {
+  if (!isset($commit['git_specific']['branch_ids'])) {
     return array();
   }
 
-  $branch = versioncontrol_get_branch($commit['git_specific']['branch_id']);
-  if (!isset($branch)) {
-    return array(); // should only happen in case of database inconsistencies
+  // Get branches.
+  $branches = array();
+  foreach ($commit['git_specific']['branch_ids'] as $branch_id) {
+    $branch = versioncontrol_get_branch($branch_id);
+    $branches[] = $branch['branch_name'];
   }
-  return array($branch['branch_name']);
+  return $branches;
 }
 
 /**
@@ -520,6 +567,12 @@ function _versioncontrol_git_update_repository(&$repository) {
 function versioncontrol_git_commit($op, $commit, $commit_actions) {
   switch ($op) {
     case 'insert':
+      // Insert branches.
+      foreach ($commit['git_specific']['branch_ids'] as $branch) {
+         db_query("INSERT INTO {versioncontrol_git_commit_branches} (vc_op_id, branch_id) VALUES (%d, %d)",
+           $commit['vc_op_id'], $branch);
+      }
+
       foreach ($commit_actions as $path => $action) {
         $revision = '';
 
