@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.log.inc,v 1.16 2008/02/01 01:20:53 boombatower Exp $
+// $Id: versioncontrol_git.log.inc,v 1.17 2008/02/01 01:22:11 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -18,7 +18,7 @@
  */
 function _versioncontrol_git_log_update_repository(&$repository) {
   chdir($root = escapeshellcmd($repository['root'])); // Set working directory to root.
-  $latest_commits = _versioncontrol_git_get_lastest_commits($repository); // Get latest commits from database.
+  $latest_commits = _versioncontrol_git_get_lasest_commits($repository); // Get latest commits from database.
   $branches = _versioncontrol_git_log_get_branches(); // Get the list of current branches from Git.
 
   // Check for any branches that are no longer part of the repository.
@@ -95,7 +95,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
  * Get an array containing branch name for key and the latest recorded commit
  * revision hash.
  */
-function _versioncontrol_git_get_lastest_commits($repository) {
+function _versioncontrol_git_get_lasest_commits($repository) {
   $result = db_query('SELECT *
     FROM {versioncontrol_git_latest_commits} c
      INNER JOIN {versioncontrol_branches} b
