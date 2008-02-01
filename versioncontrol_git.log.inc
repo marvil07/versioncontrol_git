@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.log.inc,v 1.18 2008/02/01 01:28:28 boombatower Exp $
+// $Id: versioncontrol_git.log.inc,v 1.19 2008/02/01 01:35:55 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -401,6 +401,10 @@ function _versioncontrol_git_log_parse($repository, &$logs, &$file_revisions, $b
   } // Loop to the next revision.
 }
 
+/**
+ * Get an already existing revision from the $file_revisions array with
+ * the specified revision hash.
+ */
 function _versioncontrol_git_log_get_duplicate_revision(&$file_revisions, $revision) {
 	foreach ($file_revisions as $file_revision) {
 		if ($file_revision->revision == $revision) {
