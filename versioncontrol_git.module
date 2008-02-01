@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.module,v 1.10 2008/02/01 01:18:54 boombatower Exp $
+// $Id: versioncontrol_git.module,v 1.11 2008/02/01 01:28:28 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -569,8 +569,8 @@ function versioncontrol_git_commit($op, $commit, $commit_actions) {
     case 'insert':
       // Insert branches.
       foreach ($commit['git_specific']['branch_ids'] as $branch) {
-         db_query("INSERT INTO {versioncontrol_git_commit_branches} (vc_op_id, branch_id) VALUES (%d, %d)",
-           $commit['vc_op_id'], $branch);
+         db_query("INSERT INTO {versioncontrol_git_commit_branches} (vc_op_id, branch_id, repo_id) VALUES (%d, %d, %d)",
+           $commit['vc_op_id'], $branch, $commit['repository']['repo_id']);
       }
 
       foreach ($commit_actions as $path => $action) {
@@ -737,6 +737,8 @@ function versioncontrol_git_repository($op, $repository) {
     db_query('DELETE FROM {versioncontrol_git_item_source_revisions}
       WHERE repo_id = %d', $repository['repo_id']);
     db_query('DELETE FROM {versioncontrol_git_latest_commits}
+      WHERE repo_id = %d', $repository['repo_id']);
+    db_query('DELETE FROM {versioncontrol_git_commit_branches}
       WHERE repo_id = %d', $repository['repo_id']);
   }
 }

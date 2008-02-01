@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.log.inc,v 1.17 2008/02/01 01:22:11 boombatower Exp $
+// $Id: versioncontrol_git.log.inc,v 1.18 2008/02/01 01:28:28 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -445,8 +445,8 @@ function _versioncontrol_git_log_process($repository, $file_revisions) {
           $vc_op_id, $branch_id));
 
         if ($count == 0) { // Add to branch.
-         	db_query("INSERT INTO {versioncontrol_git_commit_branches} (vc_op_id, branch_id) VALUES (%d, %d)",
-         	  $vc_op_id, $branch_id);
+         	db_query("INSERT INTO {versioncontrol_git_commit_branches} (vc_op_id, branch_id, repo_id) VALUES (%d, %d, %d)",
+         	  $vc_op_id, $branch_id, $repository['repo_id']);
         }
       }
       continue;
