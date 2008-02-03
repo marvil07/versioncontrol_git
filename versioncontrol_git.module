@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.module,v 1.16 2008/02/03 06:51:10 boombatower Exp $
+// $Id: versioncontrol_git.module,v 1.17 2008/02/03 19:42:03 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -763,7 +763,10 @@ function versioncontrol_git_tag_operation($op, $tag, $tagged_items) {
  *        corresponding backend module (versioncontrol_[xxx]).
  */
 function versioncontrol_git_repository($op, $repository) {
-
+  if ($op == 'update') {
+  	variable_set('versioncontrol_git_log_use_file', $repository['use_file']);
+  	unset($repository['use_file']);
+  }
 }
 
 /**

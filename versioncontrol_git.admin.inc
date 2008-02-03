@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.admin.inc,v 1.4 2008/01/27 22:47:11 boombatower Exp $
+// $Id: versioncontrol_git.admin.inc,v 1.5 2008/02/03 19:42:03 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -35,11 +35,18 @@ function versioncontrol_git_repository_admin_form_alter($form_id, &$form) {
     '#default_value' => isset($repository)
                         ? $repository['git_specific']['update_method']
                         : VERSIONCONTROL_GIT_UPDATE_CRON,
-    '#weight' => 10,
+    '#weight' => 9,
     '#options' => array(
       VERSIONCONTROL_GIT_UPDATE_CRON => t('Automatic log retrieval.'),
       VERSIONCONTROL_GIT_UPDATE_XGIT => t('Use external script to insert data.'),
     ),
+  );
+  $form['repository_information']['use_file'] = array(
+  	'#type' => 'checkbox',
+  	'#title' => t('Use log file'),
+  	'#description' => t('Use a log file to store response when calling Git from the command line. If not used than the response will be stored in an array.'),
+  	'#default_value' => variable_get('versioncontrol_git_log_use_file', 1),
+  	'#weight' => 10,
   );
 }
 
@@ -57,6 +64,7 @@ function versioncontrol_git_versioncontrol_extract_repository_data($form_values)
     'git_specific' => array(
       'update_method' => $form_values['update_method'],
     ),
+    'use_file' => $form_values['use_file'], // Temporary location.
   );
 }
 
