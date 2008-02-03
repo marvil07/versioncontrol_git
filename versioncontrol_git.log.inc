@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.log.inc,v 1.24 2008/02/03 06:16:55 boombatower Exp $
+// $Id: versioncontrol_git.log.inc,v 1.25 2008/02/03 06:51:10 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -436,8 +436,10 @@ function _versioncontrol_git_log_process($repository, $file_revisions) {
        FROM {versioncontrol_git_item_revisions} ir
         INNER JOIN {versioncontrol_operations} op
          ON ir.vc_op_id = op.vc_op_id
+        INNER JOIN {versioncontrol_commits} c
+         ON ir.vc_op_id = c.vc_op_id
        WHERE op.repo_id = %d AND op.type = %d
-        AND ir.path = '%s' AND ir.revision = '%s'",
+        AND ir.path = '%s' AND c.revision = '%s'",
       $repository['repo_id'], VERSIONCONTROL_OPERATION_COMMIT,
       $file_revision->path, $file_revision->revision
     ));
@@ -527,24 +529,21 @@ function _versioncontrol_git_log_process($repository, $file_revisions) {
 function _versioncontrol_git_log_construct_commit($repository, $commit_actions, &$commits) {
   $date = 0;
 
-  // Get any of those commit properties, apart from the date (which may
-  // vary in large commits) they should all be the same anyways.
+  // Remove extra commit properties.
   foreach ($commit_actions as $path => $commit_action) {
     $file_revision = $commit_action['git_specific']['file_revision'];
+    $revision = $commit_action['git_specific']['revision'];
     unset($commit_actions[$path]['git_specific']['file_revision']);
+  }
 
-    if ($file_revision->date > $date) {
-      $date = $file_revision->date;
-    }
-    $username = $file_revision->username;
-    $message = $file_revision->message;
-    $branches = $file_revision->branches;
+  if ($file_revision->date > $date) {
+    $date = $file_revision->date;
   }
 
   // Get the branch id, and insert the branch into the database
   // if it doesn't exist yet.
   $branch_ids = array();
-  foreach ($branches as $branch) {
+  foreach ($file_revision->branches as $branch) {
     $branch_ids[] = versioncontrol_ensure_branch($branch, $repository['repo_id']);
   }
 
@@ -552,9 +551,9 @@ function _versioncontrol_git_log_construct_commit($repository, $commit_actions, 
   $commit = array(
     'repo_id' => $repository['repo_id'],
     'date' => $date,
-    'username' => $username,
-    'message' => $message,
-    'revision' => '',
+    'username' => $file_revision->username,
+    'message' => $file_revision->message,
+    'revision' => $revision,
     'git_specific' => array(
       'branch_ids' => $branch_ids,
     ),
