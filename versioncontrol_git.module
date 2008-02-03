@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.module,v 1.13 2008/02/01 05:53:58 boombatower Exp $
+// $Id: versioncontrol_git.module,v 1.14 2008/02/03 06:09:56 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -231,11 +231,11 @@ function versioncontrol_git_get_commit_actions($commit) {
       );
     }
     if ($item_revision->action != VERSIONCONTROL_ACTION_ADDED) {
-      $source_revision = versioncontrol_git_get_source_revision($item_revision->revision);
+      $source_items = versioncontrol_git_get_source_items($item_revision->item_revision_id);
       $action['source items'] = array(array(
         'type' => $item_revision->type,
         'path' => $item_revision->path,
-        'revision' => isset($source_revision) ? $source_revision : '',
+        'revision' => count($source_items) > 0 ? versioncontrol_git_get_item_revision($source_items[0]) : '', // TODO Figure out what to do with multiple source items.
         'git_specific' => array(
           'item_revision_id' => $item_revision->item_revision_id,
           'selected_branch_ids' => $commit['git_specific']['branch_ids'],
@@ -597,6 +597,12 @@ function versioncontrol_git_commit($op, $commit, $commit_actions) {
           $action['action'], $action['git_specific']['lines_added'],
           $action['git_specific']['lines_removed']
         );
+
+        db_query("INSERT INTO {versioncontrol_git_item_source_revisions}
+                  (item_revision_id, source_item_revision_id)
+                  VALUES (%d, %d)",
+          $item_revision_id,
+          _versioncontrol_git_get_item_revision_id($action['source items'][0]['path'], $action['source items'][0]['revision']));
       }
       break;
 
@@ -609,14 +615,31 @@ function versioncontrol_git_commit($op, $commit, $commit_actions) {
         db_query('DELETE FROM {versioncontrol_git_item_tags}
                   WHERE item_revision_id = %d',
                   $revision->item_revision_id);
+        db_query('DELETE FROM {versioncontrol_git_item_source_revisions}
+                  WHERE item_revision_id = %d OR source_item_revision_id = %d',
+                  $revision->item_revision_id, $revision->item_revision_id);
+        db_query("DELETE FROM {versioncontrol_git_latest_commits}
+                  WHERE revision = '%s'",
+                  $revision->revision);
       }
       db_query('DELETE FROM {versioncontrol_git_item_revisions}
                 WHERE vc_op_id = %d', $commit['vc_op_id']);
-      db_query("DELETE FROM {versioncontrol_git_item_source_revisions}
-                WHERE revision = '%s' OR source_revision = '%s'",
-                $revision->revision, $revision->revision);
+      db_query('DELETE FROM {versioncontrol_git_commit_branches}
+                WHERE vc_op_id = %d', $commit['vc_op_id']);
       break;
   }
+}
+
+/**
+ * Get the item_revision_id for the revision with the specified path
+ * and revision hash.
+ */
+function _versioncontrol_git_get_item_revision_id($path, $revision) {
+  $result = db_result(db_query("SELECT item_revision_id
+                                FROM {versioncontrol_git_item_revisions}
+                                WHERE path = '%s' AND revision = '%s'",
+                                $path, $revision));
+  return ($result !== FALSE ? $result : -1);
 }
 
 /**
@@ -737,12 +760,57 @@ function versioncontrol_git_tag_operation($op, $tag, $tagged_items) {
  *        corresponding backend module (versioncontrol_[xxx]).
  */
 function versioncontrol_git_repository($op, $repository) {
-  if ($op == 'delete') {
-    db_query('DELETE FROM {versioncontrol_git_item_source_revisions}
-      WHERE repo_id = %d', $repository['repo_id']);
-    db_query('DELETE FROM {versioncontrol_git_latest_commits}
-      WHERE repo_id = %d', $repository['repo_id']);
-    db_query('DELETE FROM {versioncontrol_git_commit_branches}
-      WHERE repo_id = %d', $repository['repo_id']);
+
+}
+
+/**
+ * Get the current revision (commit id) of file under version control,
+ * given the repository id and path.
+ * 
+ * @return string Current revision (commit id).
+ */
+function versioncontrol_git_get_current_revision($repo_id, $path) {
+  $result = db_fetch_object(db_query(
+    "SELECT action, revision
+     FROM {versioncontrol_git_item_revisions} ir
+      INNER JOIN versioncontrol_operations op
+       ON ir.vc_op_id = op.vc_op_id
+     WHERE op.repo_id = %d AND ir.path = '%s'
+     ORDER BY ir.item_revision_id DESC
+     LIMIT 1",
+    $repo_id, $path
+  ));
+  if ($result !== FALSE && $result->action != VERSIONCONTROL_ACTION_DELETED) {
+    return $result->revision;
   }
+  return NULL;
+}
+
+/**
+ * Get the source items of the specified item revision.
+ * 
+ * @return array Source items.
+ */
+function versioncontrol_git_get_source_items($item_revision_id) {
+  $result = db_query(
+    "SELECT source_item_revision_id
+     FROM {versioncontrol_git_item_source_revisions}
+     WHERE item_revision_id = '%s'",
+    $item_revision_id
+  );
+
+  $source_revisions = array();
+  while ($source_revision = db_fetch_object($result)) {
+    $source_revisions[] = $source_revision->source_item_revision_id;
+  }
+  return $source_revisions;
+}
+
+function versioncontrol_git_get_item_revision($item_revision_id) {
+  return db_result(db_query(
+    "SELECT revision
+     FROM {versioncontrol_git_item_revisions}
+     WHERE item_revision_id = '%s'",
+    $item_revision_id
+  ));
 }
