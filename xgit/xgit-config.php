@@ -1,5 +1,5 @@
 <?php
-// $Id: xgit-config.php,v 1.1 2008/01/27 06:53:38 boombatower Exp $
+// $Id: xgit-config.php,v 1.2 2008/02/03 19:48:44 boombatower Exp $
 /**
  * @file
  * Configuration variables and bootstrapping code for all Git hook scripts.
@@ -12,16 +12,16 @@
 // ------------------------------------------------------------
 
 // Base path of drupal directory (no trailing slash)
-$xgit['drupal_path'] = '/home/jimmy/public_html/drupal-5.6';
+$xgit['drupal_path'] = '';
 
 // File location where to store temporary files.
-$xgit['temp'] = "/tmp";
+$xgit['temp'] = "";
 
 // Drupal repository id that this installation of scripts is going to
 // interact with. In order to find out the repository id, go to the
 // "VCS repositories" administration page, then click on the "edit" link of
 // the concerned repository, and notice the final number in the resulting URL.
-$xgit['repo_id'] = 11;
+$xgit['repo_id'] = -1;
 
 
 // ------------------------------------------------------------

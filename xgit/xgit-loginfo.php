@@ -1,6 +1,6 @@
 #!/usr/bin/php
 <?php
-// $Id: xgit-loginfo.php,v 1.1 2008/01/27 06:53:38 boombatower Exp $
+// $Id: xgit-loginfo.php,v 1.2 2008/02/03 19:48:44 boombatower Exp $
 /**
  * @file
  * Insert commit info into the Drupal database by loading Git backend and
@@ -49,7 +49,6 @@ function xgit_init($argc, $argv) {
     set_time_limit(3600);
   }
   _versioncontrol_git_update_repository($repository);
-  file_put_contents('/home/jimmy/software/git_test/code.txt', "\n". rand(), FILE_APPEND); // TODO temp
   exit(0);
 }
 
