@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.log.inc,v 1.25 2008/02/03 06:51:10 boombatower Exp $
+// $Id: versioncontrol_git.log.inc,v 1.26 2008/02/03 07:07:30 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -50,7 +50,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
     _versioncontrol_git_log_get_commits($repository, $file_revisions, $branch, $range);
 
     // If new revision set as latest revision.
-    if ($previous_count < count($file_revisions)) {
+    if (count($file_revisions) > $previous_count) {
       $latest_commits[$branch] = $file_revisions[$previous_count]->revision;
       $previous_count = count($file_revisions);
     }
