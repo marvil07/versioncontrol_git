@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.module,v 1.18 2008/02/04 04:04:18 boombatower Exp $
+// $Id: versioncontrol_git.module,v 1.19 2008/02/04 04:06:10 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -18,9 +18,9 @@ include_once(drupal_get_path('module', 'versioncontrol_git') .'/versioncontrol_g
 /**
  * Implementation of hook_help().
  */
-function versioncontrol_git_help($section= "admin/help#versioncontrol_git") {
+function versioncontrol_git_help($section = "admin/help#versioncontrol_git") {
   $output = '';
-  if ($section = 'admin/help#versioncontrol_git') {
+  if ($section == 'admin/help#versioncontrol_git') {
     $output = '<p>The Git Backend can be used to retrieve and view commit information. The commit
       information can either be retreived automatically through the use of the <i>xgit</i> scripts
       or using the <i>fetch now</i> link on the project administration repository page. The logs
