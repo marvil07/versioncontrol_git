@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.module,v 1.17 2008/02/03 19:42:03 boombatower Exp $
+// $Id: versioncontrol_git.module,v 1.18 2008/02/04 04:04:18 boombatower Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -14,6 +14,26 @@ define('VERSIONCONTROL_GIT_UPDATE_XGIT', 1);
 
 // The admin and user edit pages.
 include_once(drupal_get_path('module', 'versioncontrol_git') .'/versioncontrol_git.admin.inc');
+
+/**
+ * Implementation of hook_help().
+ */
+function versioncontrol_git_help($section= "admin/help#versioncontrol_git") {
+  $output = '';
+  if ($section = 'admin/help#versioncontrol_git') {
+    $output = '<p>The Git Backend can be used to retrieve and view commit information. The commit
+      information can either be retreived automatically through the use of the <i>xgit</i> scripts
+      or using the <i>fetch now</i> link on the project administration repository page. The logs
+      are then defaultly avaliable through the <i>commitlog</i> page.</p>
+      <p>Information reguarding the setup of <i>xgit</i> scripts is aviable in the <i>README.txt</i>
+      located in the <i>xgit</i> directory.</p>
+      <p>If you have any questions, comments, or feature requests please visit the
+      <a href="http://drupal.org/project/versioncontrol_git">module page</a> and
+      post your concerns in the issue quene.</p>';
+  }
+
+  return $output;
+}
 
 /**
  * Implementation of hook_versioncontrol_backends().
@@ -53,9 +73,9 @@ function versioncontrol_git_versioncontrol_backends() {
       // A list of optional capabilities, in addition to the required retrieval
       // of detailed commit information.
       'capabilities' => array(
-      	// Use the commit hash for to identify the commit instead of an idvidual
-      	// revision for each file.
-      	VERSIONCONTROL_CAPABILITY_ATOMIC_COMMITS
+        // Use the commit hash for to identify the commit instead of an idvidual
+        // revision for each file.
+        VERSIONCONTROL_CAPABILITY_ATOMIC_COMMITS
       ),
 
       // An array listing which tables should be managed by Version Control API
@@ -764,8 +784,8 @@ function versioncontrol_git_tag_operation($op, $tag, $tagged_items) {
  */
 function versioncontrol_git_repository($op, $repository) {
   if ($op == 'update') {
-  	variable_set('versioncontrol_git_log_use_file', $repository['use_file']);
-  	unset($repository['use_file']);
+    variable_set('versioncontrol_git_log_use_file', $repository['use_file']);
+    unset($repository['use_file']);
   }
 }
 
