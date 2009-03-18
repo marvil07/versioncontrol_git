@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.install,v 1.15 2008/02/03 19:42:03 boombatower Exp $
+// $Id: versioncontrol_git.install,v 1.16 2009/03/18 01:27:05 marvil07 Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -9,131 +9,233 @@
  */
 
 /**
+ * Implementation of hook_schema().
+ */
+function versioncontrol_git_schema() {
+  $schema['versioncontrol_git_accounts'] = array(
+    'description' => t('Git accounts.'),
+    'fields' => array(
+      'uid' => array(
+        'description' => t('Drupal User identifier.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        ),
+      'repo_id' => array(
+        'description' => t('Repository identifier.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        ),
+      'password' => array(
+        'description' => t('Password.'),
+        'type' => 'varchar',
+        'length' => 64,
+        'not null' => TRUE,
+        'default' => '',
+        ),
+      ),
+    'primary key' => array('uid', 'repo_id'),
+  );
+
+  $schema['versioncontrol_git_repositories'] = array(
+    'description' => t('Git repositories.'),
+    'fields' => array(
+      'repo_id' => array(
+        'description' => t('Repository identifier.'),
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        ),
+      'update_method' => array(
+        'description' => t('Update method.'),
+        'type' => 'int',
+        'size' => 'tiny',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        ),
+      'updated' => array(
+        'description' => t('Last update.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        ),
+      ),
+    'primary key' => array('repo_id'),
+  );
+
+  $schema['versioncontrol_git_commit_branches'] = array(
+    'description' => t('Git commit branches.'), //FIXME not sure here about concept
+    'fields' => array(
+      'vc_op_id' => array(
+        'description' => '', //FIXME what's that?
+        'type' => 'int', // TODO serial or int?
+        'not null' => TRUE,
+        ),
+      'branch_id' => array(
+        'description' => t('Branch identifier.'),
+        'type' => 'int', // TODO serial or int?
+        'not null' => TRUE,
+        ),
+      ),
+    'primary key' => array('vc_op_id', 'branch_id'),
+  );
+
+  $schema['versioncontrol_git_item_revisions'] = array(
+    'description' => t('Item revisions.'),
+    'fields' => array(
+      'item_revision_id' => array(
+        'description' => t('Item revision identifier.'),
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        ),
+      'vc_op_id' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        ),
+      'action' => array(
+        'type' => 'int',
+        'size' => 'tiny',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        ),
+      'type' => array(
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 0,
+        ),
+      'path' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+        ),
+      'lines_added' => array(
+        'type' => 'int',
+        'size' => 'tiny',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        ),
+      'lines_removed' => array(
+        'type' => 'int',
+        'size' => 'tiny',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        ),
+      ),
+    'primary key' => array('item_revision_id'),
+    'unique keys' => array('versioncontrol_git_item_revisions_vc_op_id_path' => array('vc_op_id', 'path'))
+  );
+
+  $schema['versioncontrol_git_item_tags'] = array(
+    'description' => t('Git tags.'), //FIXME not sure here about concept
+    'fields' => array(
+      'vc_op_id' => array(
+        'description' => '', //FIXME what's that?
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        ),
+      'item_revision_id' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        ),
+      ),
+    'primary key' => array('vc_op_id', 'item_revision_id'),
+  );
+
+  $schema['versioncontrol_git_tag_operations'] = array(
+    'description' => t('Git tags.'), //FIXME not sure here about concept
+    'fields' => array(
+      'vc_op_id' => array(
+        'description' => '', //FIXME what's that?
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        ),
+      'revision' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+        ),
+      ),
+    'primary key' => array('vc_op_id'),
+  );
+
+  $schema['versioncontrol_git_latest_commits'] = array(
+    'description' => t('Git latest commits.'),
+    'fields' => array(
+      'lastest_commits_id' => array(
+        'description' => t('Item revision identifier.'),
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        ),
+      'branch_id' => array(
+        'description' => t('Branch identifier.'),
+        'type' => 'int',
+        'not null' => TRUE,
+        ),
+      'revision' => array(
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+        ),
+      'repo_id' => array(
+        'description' => t('Repository identifier.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        ),
+      ),
+    'primary key' => array('lastest_commits_id'),
+  );
+
+  $schema['versioncontrol_git_item_source_revisions'] = array(
+    'description' => t('Git tags.'), //FIXME not sure here about concept
+    'fields' => array(
+      'item_revision_id' => array(
+        'description' => '', //FIXME what's that?
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        ),
+      'source_item_revision_id' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        ),
+      ),
+    'primary key' => array('item_revision_id', 'source_item_revision_id'),
+  );
+
+  return $schema;
+
+}
+
+/**
  * Implementation of hook_install().
  */
 function versioncontrol_git_install() {
-  switch ($GLOBALS['db_type']) {
-    case 'mysqli':
-    case 'mysql':
-      db_query("CREATE TABLE {versioncontrol_git_accounts} (
-        uid int unsigned NOT NULL default 0,
-        repo_id int unsigned NOT NULL default 0,
-        password varchar(64) NOT NULL default '',
-        PRIMARY KEY (uid, repo_id)
-      ) /*!40100 DEFAULT CHARACTER SET utf8 */");
-
-      db_query("CREATE TABLE {versioncontrol_git_repositories} (
-        repo_id int unsigned NOT NULL default 0,
-        update_method tinyint unsigned NOT NULL default 0,
-        updated int unsigned NOT NULL default 0,
-        PRIMARY KEY (repo_id)
-      ) /*!40100 DEFAULT CHARACTER SET utf8 */");
-
-      db_query("CREATE TABLE {versioncontrol_git_commit_branches} (
-        vc_op_id int NOT NULL,
-        branch_id int NOT NULL,
-        PRIMARY KEY (vc_op_id, branch_id)
-      ) /*!40100 DEFAULT CHARACTER SET utf8 */");
-
-      db_query("CREATE TABLE {versioncontrol_git_item_revisions} (
-        item_revision_id int unsigned NOT NULL default 0,
-        vc_op_id int unsigned NOT NULL default 0,
-        action tinyint unsigned NOT NULL default 0,
-        type tinyint NOT NULL default 0,
-        path varchar(255) NOT NULL default '',
-        lines_added smallint unsigned NOT NULL default 0,
-        lines_removed smallint unsigned NOT NULL default 0,
-        PRIMARY KEY (item_revision_id),
-        UNIQUE KEY (vc_op_id, path)
-      ) /*!40100 DEFAULT CHARACTER SET utf8 */");
-
-      db_query("CREATE TABLE {versioncontrol_git_item_tags} (
-        vc_op_id int unsigned NOT NULL default 0,
-        item_revision_id int unsigned NOT NULL default 0,
-        PRIMARY KEY (vc_op_id, item_revision_id)
-      ) /*!40100 DEFAULT CHARACTER SET utf8 */");
-
-      db_query("CREATE TABLE {versioncontrol_git_tag_operations} (
-        vc_op_id int NOT NULL default 0,
-        revision varchar(255) NOT NULL default '',
-        PRIMARY KEY (vc_op_id)
-      ) /*!40100 DEFAULT CHARACTER SET utf8 */");
-
-      db_query("CREATE TABLE {versioncontrol_git_latest_commits} (
-        lastest_commits_id int NOT NULL,
-        branch_id int NOT NULL,
-        revision varchar(255) NOT NULL,
-        repo_id int(11) NOT NULL,
-        PRIMARY KEY (lastest_commits_id)
-      ) /*!40100 DEFAULT CHARACTER SET utf8 */");
-
-      db_query("CREATE TABLE {versioncontrol_git_item_source_revisions} (
-        item_revision_id int NOT NULL,
-        source_item_revision_id int NOT NULL,
-        PRIMARY KEY (item_revision_id, source_item_revision_id)
-      ) /*!40100 DEFAULT CHARACTER SET utf8 */");
-      break;
-
-    case 'pgsql':
-      db_query("CREATE TABLE {versioncontrol_git_accounts} (
-        uid int NOT NULL default 0,
-        repo_id int NOT NULL default 0,
-        password varchar(64) NOT NULL default '',
-        PRIMARY KEY (uid, repo_id)
-      )");
-
-      db_query("CREATE TABLE {versioncontrol_git_repositories} (
-        repo_id int NOT NULL default 0,
-        update_method smallint NOT NULL default 0,
-        updated int NOT NULL default 0,
-        PRIMARY KEY (repo_id)
-      )");
-
-      db_query("CREATE TABLE {versioncontrol_git_commit_branches} (
-        vc_op_id int NOT NULL,
-        branch_id int NOT NULL,
-        PRIMARY KEY (vc_op_id, branch_id)
-      )");
-
-      db_query("CREATE TABLE {versioncontrol_git_item_revisions} (
-        item_revision_id int NOT NULL default 0,
-        vc_op_id int NOT NULL default 0,
-        action smallint NOT NULL default 0,
-        type smallint NOT NULL default 0,
-        path varchar(255) NOT NULL default '',
-        lines_added smallint NOT NULL default 0,
-        lines_removed smallint NOT NULL default 0,
-        PRIMARY KEY (item_revision_id),
-        UNIQUE (vc_op_id, path)
-      )");
-
-      db_query("CREATE TABLE {versioncontrol_git_item_tags} (
-        vc_op_id int NOT NULL default 0,
-        item_revision_id int NOT NULL default 0,
-        PRIMARY KEY (vc_op_id, item_revision_id)
-      )");
-
-      db_query("CREATE TABLE {versioncontrol_git_tag_operations} (
-        vc_op_id int NOT NULL default 0,
-        revision varchar(255) NOT NULL default '',
-        PRIMARY KEY (vc_op_id)
-      )");
-
-      db_query("CREATE TABLE {versioncontrol_git_latest_commits} (
-        lastest_commits_id int NOT NULL,
-        branch_id int NOT NULL,
-        revision varchar(255) NOT NULL,
-        repo_id int(11) NOT NULL,
-        PRIMARY KEY (lastest_commits_id)
-      )");
-
-      db_query("CREATE TABLE {versioncontrol_git_item_source_revisions} (
-        item_revision_id int NOT NULL,
-        source_item_revision_id int NOT NULL,
-        PRIMARY KEY (item_revision_id, source_item_revision_id)
-      )");
-      break;
-  }
+  drupal_install_schema('versioncontrol_git');
 }
 
 /**
@@ -152,14 +254,7 @@ function versioncontrol_git_uninstall() {
     }
   }
 
-  db_query('DROP TABLE {versioncontrol_git_accounts}');
-  db_query('DROP TABLE {versioncontrol_git_repositories}');
-  db_query('DROP TABLE {versioncontrol_git_commit_branches}');
-  db_query('DROP TABLE {versioncontrol_git_item_revisions}');
-  db_query('DROP TABLE {versioncontrol_git_item_tags}');
-  db_query('DROP TABLE {versioncontrol_git_tag_operations}');
-  db_query('DROP TABLE {versioncontrol_git_latest_commits}');
-  db_query('DROP TABLE {versioncontrol_git_item_source_revisions}');
+  drupal_uninstall_schema('versioncontrol_git');
 
   variable_del('versioncontrol_git_log_use_file');
 }

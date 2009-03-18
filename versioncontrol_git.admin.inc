@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.admin.inc,v 1.5 2008/02/03 19:42:03 boombatower Exp $
+// $Id: versioncontrol_git.admin.inc,v 1.6 2009/03/18 01:27:05 marvil07 Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -12,16 +12,16 @@
  * Implementation of hook_form_alter(): Add elements to various
  * administrative forms that the Version Control API provides.
  */
-function versioncontrol_git_form_alter($form_id, &$form) {
+function versioncontrol_git_form_alter(&$form, $form_state, $form_id) {
   if ($form['#id'] == 'versioncontrol-repository-form' && $form['#vcs'] == 'git') {
-    versioncontrol_git_repository_admin_form_alter($form_id, $form);
+    versioncontrol_git_repository_admin_form_alter($form, $form_state, $form_id);
   }
 }
 
 /**
  * Add Git specific elements to the add/edit repository form.
  */
-function versioncontrol_git_repository_admin_form_alter($form_id, &$form) {
+function versioncontrol_git_repository_admin_form_alter(&$form, $form_state, $form_id) {
   $repository = $form['#repository'];
 
   $form['versioncontrol_git'] = array(

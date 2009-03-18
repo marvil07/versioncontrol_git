@@ -1,5 +1,6 @@
-; $Id: versioncontrol_git.info,v 1.1 2008/01/26 21:31:44 boombatower Exp $
+; $Id: versioncontrol_git.info,v 1.2 2009/03/18 01:27:05 marvil07 Exp $
 name = "Git backend"
 description = "Git backend for Version Control API - Provides Git commit information and account management as a pluggable backend."
-dependencies = versioncontrol
+core=6.x
+dependencies[] = versioncontrol
 package = Version Control
