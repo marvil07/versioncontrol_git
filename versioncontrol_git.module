@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.module,v 1.21 2009/03/18 01:27:05 marvil07 Exp $
+// $Id: versioncontrol_git.module,v 1.21.2.1 2009/03/23 00:51:41 marvil07 Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -95,13 +95,11 @@ function versioncontrol_git_versioncontrol_backends() {
  * Implementation of hook_menu().
  */
 function versioncontrol_git_menu() {
-  global $user;
   $items = array();
 
   $items['admin/project/versioncontrol-repositories/update/git'] = array(
     'title' => 'Fetch log',
     'page callback' => 'versioncontrol_git_update_repository_callback',
-    'access callback' => 'user_access',
     'access arguments' => array('administer version control systems'),
     'type' => MENU_CALLBACK,
   );
