@@ -55,9 +55,9 @@ function _versioncontrol_git_log_update_repository(&$repository) {
       $previous_count = count($file_revisions);
     }
 
-    $branch_id = versioncontrol_ensure_branch($branch, $repository['repo_id']);
+    $branch_id = versioncontrol_git_get_label_id($repository['repo_id'], $branch, VERSIONCONTROL_OPERATION_BRANCH);
 
-    if ($branch_id !== NULL) {
+    if ($branch_id === FALSE) {
       db_query('DELETE FROM {versioncontrol_git_latest_commits} WHERE branch_id = %d', $branch_id);
 
       $lastest_commits_id = db_last_insert_id('{versioncontrol_git_latest_commits}_lastest_commits_id');
@@ -260,7 +260,18 @@ function _versioncontrol_git_log_process_tags($repository, $tags) {
   ksort($tag_actions);
   foreach ($tag_actions as $date => $date_tag_actions) {
     foreach ($date_tag_actions as $tag_actions_info) {
-      versioncontrol_insert_tag_operation($tag_actions_info[0], $tag_actions_info[1]);
+      $tag_operation = array(
+        'type' => VERSIONCONTROL_OPERATION_TAG,
+        'repository' => $repository,
+        'date' => $date,
+        'username' => $tag_actions_info[0]['username'],
+        'message' => $tag_actions_info[0]['message'],
+        'revision' => $tag_actions_info[0]['git_specific']['revision'],
+        'labels' => array(),
+      );
+      versioncontrol_insert_operation($tag_operation, $tag_actions_info);
+
+      //versioncontrol_insert_tag_operation($tag_actions_info[0], $tag_actions_info[1]);
     }
   }
 }
@@ -515,7 +526,16 @@ function _versioncontrol_git_log_process($repository, $file_revisions) {
         $commit_info->commit_actions[$path]['source items'][0]['revision'] = versioncontrol_git_get_current_revision($repository['repo_id'], $commit_action['source items'][0]['path']);
       }
 
-      versioncontrol_insert_commit($commit_info->commit, $commit_info->commit_actions);
+      $commit_operation = array(
+        'type' => VERSIONCONTROL_OPERATION_COMMIT,
+        'repository' => $repository,
+        'date' => $date,
+        'username' => $commit_info->commit['username'],
+        'message' => $commit_info->commit['message'],
+        'revision' => $commit_info->commit['revision'],
+        'labels' => array(),
+      );
+      versioncontrol_insert_operation($commit_operation, $commit_info->commit_actions);
     }
   }
 }
@@ -544,7 +564,7 @@ function _versioncontrol_git_log_construct_commit($repository, $commit_actions, 
   // if it doesn't exist yet.
   $branch_ids = array();
   foreach ($file_revision->branches as $branch) {
-    $branch_ids[] = versioncontrol_ensure_branch($branch, $repository['repo_id']);
+    $branch_ids[] = versioncontrol_git_get_label_id($repository['repo_id'], $branch, VERSIONCONTROL_OPERATION_BRANCH);
   }
 
   // Yay, we have all commit actions and all information. Ready to go!
@@ -563,4 +583,13 @@ function _versioncontrol_git_log_construct_commit($repository, $commit_actions, 
   $commit_info->commit = $commit;
   $commit_info->commit_actions = $commit_actions;
   $commits[$date][] = $commit_info;
+}
+
+/**
+ * FIXME: api for retrieve branch id?
+ * mimic some of version_control_ensure_branch()
+ */
+function versioncontrol_git_get_label_id($repo_id, $branch, $type) {
+  $result = db_query('SELECT label_id FROM {versioncontrol_labels} WHERE repo_id = \'%s\' AND name = \'%s\' AND type = %s', $repository['repo_id'], $branch, VERSIONCONTROL_OPERATION_BRANCH);
+  $branch_id = db_fetch_array($result);
 }
