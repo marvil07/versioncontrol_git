@@ -839,3 +839,31 @@ function versioncontrol_git_get_item_revision($item_revision_id) {
      $item_revision_id
   ));
 }
+
+/**
+ * Implementation of [versioncontrol_backend]_format_revision_identifier():
+ * Get the user-visible version of a commit identifier a.k.a. 'revision',
+ * as plaintext.
+ *
+ * Version control backends can choose to implement their own version of this
+ * function, which for example makes it possible to cut the SHA-1 hash in
+ * distributed version control systems down to a readable length.
+ *
+ * @param $revision
+ *   The commit identifier that should be themed.
+ * @param $format
+ *   Either 'full' for the original version, or 'short' for a more compact form.
+ *   If the commit identifier doesn't need to be shortened, the results can
+ *   be the same for both versions.
+ */
+function versioncontrol_git_format_revision_identifier($revision, $format = 'full') {
+  switch ($format) {
+    case 'short':
+        // Let's return only the first 7 characters of the revision identifier,
+        // like git log --abbrev-commit does by default.
+        return substr($revision, 0, 7);
+    case 'full':
+    default:
+      return $revision;
+  }
+}
