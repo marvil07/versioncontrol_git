@@ -68,7 +68,7 @@ function versioncontrol_git_versioncontrol_backends() {
       'name' => 'Git',
 
       // A short description of the VCS, if possible not longer than one or two sentences.
-      'description' => t('Git (Fast Version Control System) is a version control system designed to handle very large projects with speed and efficiency; it is used mainly for various open source projects, most notably the Linux kernel.'),
+      'description' => t('Git is a fast, scalable, distributed revision control system with an unusually rich command set that provides both high-level operations and full access to internals.'),
 
       // A list of optional capabilities, in addition to the required retrieval
       // of detailed commit information.
