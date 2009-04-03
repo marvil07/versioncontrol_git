@@ -851,5 +851,8 @@ function versioncontrol_git_get_item_revision($item_revision_id) {
  * @return bool true if valid, false otherwise
  */
 function versioncontrol_git_is_valid_username($repository, $username) {
+  if (ereg("[^[:alnum:]]", $username)) {
+    return false;
+  }
   return true; //stub
 }

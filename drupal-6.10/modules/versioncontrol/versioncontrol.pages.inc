@@ -499,8 +499,8 @@ function versioncontrol_account_edit_form_validate($form, &$form_state) {
   }
   else {
     // Check for unallowed characters, doen by the backend, but with a fallback for alphanum-only
-    if(versioncontrol_backend_implements($vcs_name, 'is_valid_username')) {
-      if(!_versioncontrol_call_backend($vcs_name, 'is_valid_username', $repository, $username)) {
+    if (versioncontrol_backend_implements($vcs_name, 'is_valid_username')) {
+      if (!_versioncontrol_call_backend($vcs_name, 'is_valid_username', $repository, $username)) {
         form_set_error('account_name',
           t('The specified @vcs username is invalid.', array('@vcs' => $vcs_name))
         );

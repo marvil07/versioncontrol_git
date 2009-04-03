@@ -1125,3 +1125,16 @@ function versioncontrol_fakevcs_export_accounts($repository, $accounts) {
   }
   return $data;
 }
+
+/**
+ * Implementation of [versioncontrol_backend]_get_selected_label_from_other_item():
+ * Restrict the username to a subset of characters which are also supported by the backend VCS
+ * @param $repository 
+ * 	The repository for the user 
+ * @param string $username
+ * 	The username to check
+ * @return bool
+ */
+function versioncontrol_git_is_valid_username($repository, $username) {
+  return true; //stub
+}
