@@ -842,3 +842,14 @@ function versioncontrol_git_get_item_revision($item_revision_id) {
      $item_revision_id
   ));
 }
+
+/**
+ * Implementation of [versioncontrol_backend]_is_valid_username():
+ * checks if the username is valid
+ * @TODO expand stub and research allowed characters for account names/authors
+ * 
+ * @return bool true if valid, false otherwise
+ */
+function versioncontrol_git_is_valid_username($repository, $username) {
+  return true; //stub
+}

@@ -424,6 +424,7 @@ function versioncontrol_account_edit_form(&$form_state, $uid, $repository, $vcs_
   if ($create_account || $admin_access) {
     if ($create_account) {
       // Have a nice default value for the new VCS username.
+      //TODO: replace with API call to backend
       $vcs_username = strtr(drupal_strtolower($user->name),
         array(' ' => '', '@' => '', '.' => '', '-' => '', '_' => '', '.' => '')
       );
@@ -497,8 +498,15 @@ function versioncontrol_account_edit_form_validate($form, &$form_state) {
     );
   }
   else {
-    // Check for unallowed characters. (Only alphanumeric ones are allowed.)
-    if (ereg("[^[:alnum:]]", $username)) {
+    // Check for unallowed characters, doen by the backend, but with a fallback for alphanum-only
+    if(versioncontrol_backend_implements($vcs_name, 'is_valid_username')) {
+      if(!_versioncontrol_call_backend($vcs_name, 'is_valid_username', $repository, $username)) {
+        form_set_error('account_name',
+          t('The specified @vcs username is invalid.', array('@vcs' => $vcs_name))
+        );
+      }
+    }
+    else if (ereg("[^[:alnum:]]", $username)) {
       form_set_error('account_name',
         t('The specified @vcs username is invalid.', array('@vcs' => $vcs_name))
       );
