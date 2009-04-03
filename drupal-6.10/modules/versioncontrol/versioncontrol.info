@@ -1,0 +1,6 @@
+; $Id: versioncontrol.info,v 1.2 2009/01/02 20:36:43 jpetso Exp $
+name = "Version Control API"
+description = "An interface to version control systems whose functionality is provided by pluggable back-end modules."
+package = Version Control
+core = 6.x
+php = 5.2

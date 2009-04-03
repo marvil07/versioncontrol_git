@@ -1,0 +1,37 @@
+$Id: README.txt,v 1.5 2008/04/15 10:09:38 jpetso Exp $
+
+Commit Log -
+Display a history of commits, branches and tags,
+optionally filtered by a set of constraint arguments.
+
+
+SHORT DESCRIPTION
+-----------------
+This module provides a page with logs of version control operations (commits,
+branches and tags) known to the Version Control API. By default, it displays
+all operations in all repositories, but the list of operations can be filtered
+by passing appropriate URLs. If the Version Control API knows about URLs
+of repository viewers and issue trackers, this module provides links to those
+in the logs.
+
+Additionally, Commit Log can send out these logs to the version control
+administrator's e-mail address if the corresponding option is enabled.
+
+Commit Log depends on the Version Control API module.
+
+
+AUTHOR
+------
+Jakob Petsovits <jpetso at gmx DOT at>
+
+
+CREDITS
+-------
+A good share of code in Commit Log was taken from the CVS integration module
+on drupal.org, its authors deserve a lot of credits and may also hold copyright
+for parts of this module.
+
+This module was originally created as part of Google Summer of Code 2007,
+so Google deserves some credits for making this possible. Thanks also
+to Derek Wright (dww) and Andy Kirkham (AjK) for mentoring
+the Summer of Code project.

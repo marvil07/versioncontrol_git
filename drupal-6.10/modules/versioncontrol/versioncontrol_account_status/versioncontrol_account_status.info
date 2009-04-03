@@ -1,0 +1,6 @@
+; $Id: versioncontrol_account_status.info,v 1.2 2009/01/02 20:36:43 jpetso Exp $
+name = "Version Control Account Status"
+description = "Require users to submit a motivation text and meet approval of version control administrators before their VCS account is enabled."
+dependencies[] = versioncontrol
+package = Version Control
+core = 6.x

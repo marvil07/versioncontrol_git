@@ -1,0 +1,1127 @@
+<?php
+// $Id: versioncontrol_fakevcs.module,v 1.58 2009/03/21 01:06:27 jpetso Exp $
+/**
+ * @file
+ * FakeVCS backend for Version Control API -
+ * An example module illustrating how to write a VCS backend.
+ *
+ * Copyright 2007, 2008 by Jakob Petsovits ("jpetso", http://drupal.org/user/56020)
+ */
+
+// Update methods.
+define('VERSIONCONTROL_FAKEVCS_UPDATE_CRON',   0);
+define('VERSIONCONTROL_FAKEVCS_UPDATE_SCRIPT', 1);
+
+// The admin pages.
+include_once(drupal_get_path('module', 'versioncontrol_fakevcs') .'/versioncontrol_fakevcs.admin.inc');
+
+/**
+ * Implementation of hook_versioncontrol_backends().
+ *
+ * This function is mandatory for backends to implement.
+ *
+ * @return
+ *   A structured array containing information about this backend, wrapped
+ *   in a structured array. Array key is the unique string identifier of
+ *   the backend. The corresponding array values are again structured arrays
+ *   and consist of elements with the following keys:
+ *
+ *   - 'name': The user-visible name of the VCS.
+ *   - 'description': A short description of the backend, if possible not
+ *        longer than one or two sentences.
+ *   - 'capabilities': An array listing optional capabilities, in addition to
+ *        the required functionality like retrieval of detailed commit
+ *        information. Array values can be an arbitrary combination
+ *        of VERSIONCONTROL_CAPABILITY_* values. If no additional capabilities
+ *        are supported by the backend, this array will be empty.
+ *   - 'flags': An array listing which tables should be managed by
+ *        Version Control API instead of doing it manually in the backend.
+ *        Array values can be an arbitrary combination of VERSIONCONTROL_FLAG_*
+ *        values. If no array additions should be automatically managed,
+ *        this array will be empty.
+ */
+function versioncontrol_fakevcs_versioncontrol_backends() {
+  // Our example VCS is called FakeVCS, and supports all possible capabilities.
+
+  return array(
+    // The array key is up to 8 characters long, and used as unique identifier
+    // for this VCS, in functions, URLs and in the database.
+    'fakevcs' => array(
+      // The user-visible name of the VCS.
+      'name' => 'FakeVCS',
+
+      // A short description of the VCS, if possible not longer than one or two sentences.
+      'description' => t('FakeVCS is a version control system that is specifically capable in doing everything that any other version control system might ever do.'),
+
+      // A list of optional capabilities, in addition to the required retrieval
+      // of detailed commit information. All allowed values are listed below.
+      'capabilities' => array(
+        // Able to cancel commits if the committer lacks permissions
+        // to commit to specific paths and/or branches.
+        VERSIONCONTROL_CAPABILITY_COMMIT_RESTRICTIONS,
+
+        // Able to cancel branch or tag assignments if the committer lacks
+        // permissions to create/update/delete those.
+        VERSIONCONTROL_CAPABILITY_BRANCH_TAG_RESTRICTIONS,
+
+        // Able to retrieve a file or its revision number based on a global
+        // revision identifier.
+        VERSIONCONTROL_CAPABILITY_ATOMIC_COMMITS,
+
+        // The version control system assigns revisions not only to files
+        // but also to directories.
+        VERSIONCONTROL_CAPABILITY_DIRECTORY_REVISIONS,
+      ),
+
+      // An array listing which tables should be managed by Version Control API
+      // instead of doing it manually in the backend.
+      // All allowed values are listed below.
+      'flags' => array(
+        // versioncontrol_insert_repository() will automatically insert
+        // array elements from $repository['[xxx]_specific'] into
+        // {versioncontrol_[xxx]_repositories} and versioncontrol_get_repositories()
+        // will automatically fetch it from there.
+        VERSIONCONTROL_FLAG_AUTOADD_REPOSITORIES,
+      ),
+    ),
+
+    // More backend entries are possible - modules probably won't need this,
+    // but let's still provide the opportunity to do so, for consistency
+    // with similar hooks from other modules and easier merging of the arrays.
+  );
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_alter_repositories():
+ * Add VCS specific repository data into a $repository['[xxx]_specific'] array.
+ * By convention, this function only adds data in this specific element
+ * and doesn't modify other parts of the repository array.
+ *
+ * Also, this function is optional for backend modules to implement. If you
+ * don't need custom additions to the repositories, just don't implement it.
+ *
+ * @param $repositories
+ *   The repositories for which this backend module needs to retrieve
+ *   additional repository data. This is an array like the one returned by
+ *   versioncontrol_get_repositories(), and even the '[xxx]_specific' arrays
+ *   already exist. (If the VERSIONCONTROL_FLAG_AUTOADD_REPOSITORIES flag
+ *   has been set by this module, it may even be filled with values already.)
+ * @param $fakevcs_specific_constraints
+ *   An array of FakeVCS specific filter constraints which were passed to
+ *   versioncontrol_get_repositories(). Say, if FakeVCS supported modules like
+ *   the CVS ones, the array would maybe contain a 'modules' constraint
+ *   for filtering by module.
+ */
+function versioncontrol_fakevcs_alter_repositories(&$repositories, $fakevcs_specific_constraints = array()) {
+  foreach ($repositories as $repo_id => $repository) {
+    // Retrieve our own custom stuff.
+    $additions = array(
+      'modules' => array('drupal', 'contributions'),
+    );
+
+    // Filter out commits that don't match the given constraints.
+    if (isset($fakevcs_specific_constraints['modules'])) {
+      foreach ($fakevcs_specific_constraints['modules'] as $module_constraint) {
+        if (!in_array($module_constraint, $additions['modules'])) {
+          unset($repositories[$repo_id]);
+          continue;
+        }
+      }
+    }
+
+    // Merge the additions into the existing commit array.
+    $repositories[$repo_id]['fakevcs_specific'] = array_merge(
+      $repository['fakevcs_specific'], $additions
+    );
+  }
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_format_revision_identifier():
+ * Get the user-visible version of a commit identifier a.k.a. 'revision',
+ * as plaintext.
+ *
+ * Version control backends can choose to implement their own version of this
+ * function, which for example makes it possible to cut the SHA-1 hash in
+ * distributed version control systems down to a readable length.
+ *
+ * @param $revision
+ *   The commit identifier that should be themed.
+ * @param $format
+ *   Either 'full' for the original version, or 'short' for a more compact form.
+ *   If the commit identifier doesn't need to be shortened, the results can
+ *   be the same for both versions.
+ */
+function versioncontrol_fakevcs_format_revision_identifier($revision, $format = 'full') {
+  switch ($format) {
+    case 'full':
+    case 'short':
+    default:
+      // Suppose we're a distributed VCS backend and have an SHA-1 hash:
+      // $revision == '30581e4ec3347d1294ec05a91eec1a8588e5993c'
+      // Let's return only the first 12 characters of the revision identifier,
+      // like Mercurial (including hgweb) does by default.
+      return substr($revision, 0, 12);
+
+      // SVN also wants to format revisions in a slightly custom way:
+      return 'r'. $revision;
+  }
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_selected_label_from_operation():
+ * Retrieve the tag or branch that applied to that item during the given
+ * operation. The result of this function will be used for the selected label
+ * property of the item, which is necessary to preserve the item state
+ * throughout navigational API functions.
+ *
+ * This function is mandatory for backends to implement.
+ *
+ * @param $operation
+ *   A single operation array to which the item belongs, like the ones returned
+ *   by versioncontrol_get_operations(). Specifically, $operation contains the
+ *   'labels' element which should probably be reused by this function.
+ * @param $target_item
+ *   The item revision for which the label should be retrieved.
+ *
+ * @return
+ *   NULL if the given item does not belong to any label or if the appropriate
+ *   label cannot be retrieved. Otherwise a label array is returned, consisting
+ *   of the following elements:
+ *
+ *   - 'name': The branch or tag name (a string).
+ *   - 'type': Whether this label is a branch (indicated by the
+ *        VERSIONCONTROL_OPERATION_BRANCH constant) or a tag
+ *        (VERSIONCONTROL_OPERATION_TAG).
+ *
+ *   In case the label array also contains the 'label_id' element (which
+ *   happens when it's copied from the $operation['labels'] array) there will
+ *   be a small performance improvement as the label doesn't need to be
+ *   compared to and loaded from the database anymore.
+ */
+function versioncontrol_fakevcs_get_selected_label_from_operation($operation, $target_item) {
+  // How CVS and many other version control systems will probably do it,
+  // as they have exactly one label assigned to each operation.
+  return $operation['labels'][0];
+
+  // If an operation - or more specifically, a commit - applies to multiple
+  // branches and/or tags (as can happen in SVN, for example), then the correct
+  // label for each item has to be determined.
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_selected_label_from_other_item():
+ * Retrieve a valid label (tag or branch) for a new @p $target_item that is
+ * (hopefully) similar or related to that of the given @p $other_item which
+ * already has a selected label assigned. If the backend cannot find a related
+ * label, return any valid label. The result of this function will be used for
+ * the selected label property of each item, which is necessary to preserve the
+ * item state throughout navigational API functions.
+ *
+ * This function is mandatory for backends to implement.
+ *
+ * @param $repository
+ *   The repository array (like returned by versioncontrol_get_repository())
+ *   of the repository which contains both the source and the successor item.
+ * @param $target_item
+ *   The item revision for which the label should be retrieved.
+ * @param $other_item
+ *   The item revision that the selected label should be derived from.
+ *   For example, if @p $other_item in a CVS repository is at revision
+ *   '1.5.2.1' which is on the 'DRUPAL-6--1' branch, and the @p $target_item
+ *   is at revision '1.5' (its predecessor) which is present on both the
+ *   'DRUPAL-6--1' and 'HEAD' branches, then this function should return a
+ *   label array for the 'DRUPAL-6--1' branch.
+ * @param $other_item_tags
+ *   An array with a simple list of strings that describe properties of the
+ *   @p $other_item, in relation to the @p $target_item. You can use those
+ *   in order to make assumptions so that the selected label can be retrieved
+ *   more accurately or with better performance. Version Control API passes a
+ *   list that may contain zero or more of the following tags:
+ *
+ *   - 'source_item': The @p $other_item is a predecessor of the
+ *        @p $target_item - same entity, but in an earlier revision and
+ *        potentially with a different path, too (only if the backend supports
+ *        item moves).
+ *   - 'successor_item': The @p $other_item is a successor of the
+ *        @p $target_item - same entity, but in a later revision and
+ *        potentially with a different path, too (only if the backend supports
+ *        item moves).
+ *   - 'same_revision': The @p $other_item is at the same (global) revision
+ *        as the @p $target_item. Specifically meant for backends whose
+ *        version control systems don't support atomic commits.
+ *
+ * @return
+ *   NULL if the given item does not belong to any label or if an appropriate
+ *   label cannot be retrieved. Otherwise a label array is returned, consisting
+ *   of the following elements:
+ *
+ *   - 'name': The branch or tag name (a string).
+ *   - 'type': Whether this label is a branch (indicated by the
+ *        VERSIONCONTROL_OPERATION_BRANCH constant) or a tag
+ *        (VERSIONCONTROL_OPERATION_TAG).
+ *
+ *   In case the label array also contains the 'label_id' element (which
+ *   happens when it's copied from the $operation['labels'] array) there will
+ *   be a small performance improvement as the label doesn't need to be
+ *   compared to and loaded from the database anymore.
+ */
+function versioncontrol_fakevcs_get_selected_label_from_other_item($repository, $target_item, &$other_item, $other_item_tags = array()) {
+  // First up, optimizations - maybe we can do without the generic
+  // "label transfer" code from further down and use assumptions instead.
+
+  // Let's assume for FakeVCS repositories that if an item wears a label, then
+  // an item at another path but with the same (file-level) revision can also
+  // wear that same label. That is the case with some version control systems
+  // (e.g. Git, Mercurial, Bazaar) but might not be the case with others
+  // (CVS for its lack of global revision identifiers, SVN for its use of
+  // directory structure as tag/branch identifiers).
+  if ($item['revision'] == $other_item['revision']) {
+    return versioncontrol_get_item_selected_label($repository, $other_item);
+  }
+
+  // If the $other_item is a successor item on a branch, some version control
+  // systems (like CVS) can guarantee that the $target_item, the predecessor,
+  // is always on the same branch. So no need for database queries, yay.
+  if (in_array('successor_item', $other_item_tags)) {
+    $label = versioncontrol_get_item_selected_label($repository, $other_item);
+
+    if (isset($label['type']) && $label['type'] == VERSIONCONTROL_OPERATION_BRANCH) {
+      return $label;
+    }
+  }
+
+  // Otherwise we might not be able to derive the $target_item's label,
+  // in which case we need to fall back to the database or a VCS invocation.
+  // For example, something like this.
+  if (versioncontrol_fetch_item_revision_id($repository, $target_item)) {
+    $constraints = array(
+      'item_revision_id' => array($target_item['item_revision_id']),
+    );
+    $commit_operations = versioncontrol_get_commit_operations($constraints);
+
+    if (!empty($commit_operations)) { // yo, found the associated commit!
+      // Code taken from the CVS backend, which only assigns a single branch
+      // to any given commit operation, so it can just take the first one.
+      $commit_operation = reset($commit_operations); // first (only) element
+      return $commit_operation['labels'][0];
+    }
+  }
+
+  // (You can even do more attempts if you want to, like trying to ask
+  // the VCS itself. Or maybe not, depends on your motivation and the
+  // VCS's capabilities.)
+
+  // No label could be retrieved by looking at the other item, sorry.
+  return NULL;
+}
+
+/**
+ * Implementation of [vcs_backend]_get_item():
+ * Try to retrieve a given item in a repository.
+ *
+ * This function is optional for VCS backends to implement, be sure to check
+ * with versioncontrol_backend_implements($repository['vcs'], 'get_item')
+ * if the particular backend actually implements it.
+ *
+ * @param $repository
+ *   The repository that the item is located in.
+ * @param $path
+ *   The path of the requested item.
+ * @param $revision
+ *   A specific revision for the requested item (as interpreted by the
+ *   VCS backend), or NULL if any revision is good enough - preferably,
+ *   the most recent one.
+ *
+ * @return
+ *   If the item with the given path and revision cannot be retrieved, NULL is
+ *   returned. Otherwise the result of the backend function is a structured
+ *   array with the elements 'item' and 'selected_label', making up the whole
+ *   picture.
+ *
+ *   - 'item': An item array, consisting of the following elements:
+ *
+ *        - 'type': Specifies the item type, which is either
+ *             VERSIONCONTROL_ITEM_FILE or VERSIONCONTROL_ITEM_DIRECTORY for
+ *             items that still exist, or VERSIONCONTROL_ITEM_FILE_DELETED
+ *             respectively VERSIONCONTROL_ITEM_DIRECTORY_DELETED for items
+ *             that have been removed.
+ *        - 'path': The path of the item at the specific revision.
+ *        - 'revision': The currently selected (file-level) revision of the
+ *             item. If there is no such revision (which may be the case for
+ *             directory items) then the 'revision' element is an empty string.
+ *
+ *        If the returned item is already present in the database, the
+ *        'item_revision_id' database identifier might also be filled in
+ *        (optional, depends on the VCS backend).
+ *
+ *   - 'selected_label':
+ *        In case no branch or tag applies to that item or could not be
+ *        retrieved for whatever reasons, the selected label can also be NULL.
+ *        Otherwise, it's a label array describing the selected label, with the
+ *        following keys:
+ *
+ *        - 'name': The branch or tag name (a string).
+ *        - 'type': Whether this label is a branch (indicated by the
+ *             VERSIONCONTROL_OPERATION_BRANCH constant) or a tag
+ *             (VERSIONCONTROL_OPERATION_TAG).
+ *
+ *        In case the label array also contains the 'label_id' element (which
+ *        happens when it's copied from the $operation['labels'] array) there
+ *        will be a small performance improvement as the label doesn't need to
+ *        be compared to and loaded from the database anymore.
+ */
+function versioncontrol_fakevcs_get_item($repository, $path, $revision = '') {
+  // Slightly adapted version of the SVN backend's implementation.
+  if (empty($revision)) {
+    $revision = 'HEAD';
+  }
+  // Wherever you get your item info from.
+  $info = fakevcs_item_info($repository, $path, $revision);
+
+  $item = array(
+    'path' => $path,
+    'revision' => $info['rev'],
+    'type' => ($info['rev'] == 'dir')
+              ? VERSIONCONTROL_ITEM_DIRECTORY
+              : VERSIONCONTROL_ITEM_FILE,
+  );
+  return array('item' => $item, 'selected_label' => NULL);
+}
+
+
+/**
+ * Implementation of [versioncontrol_backend]_get_parallel_items():
+ * Given an item in a repository, retrieve related versions of that item on all
+ * different branches and/or tags where the item exists.
+ *
+ * This function is optional for VCS backends to implement, be sure to check
+ * with versioncontrol_backend_implements($repository['vcs'], 'get_directory_contents')
+ * if the particular backend actually implements it.
+ *
+ * @param $repository
+ *   The repository that the item is located in.
+ * @param $item
+ *   The item whose parallel sibling should be retrieved.
+ * @param $label_type_filter
+ *   If unset, siblings will be retrieved both on branches and tags.
+ *   If set to VERSIONCONTROL_OPERATION_BRANCH or VERSIONCONTROL_OPERATION_TAG,
+ *   results are limited to just that label type.
+ *
+ * @return
+ *   A structured item array of parallel items on all branches and tags,
+ *   possibly including the original item itself (if appropriate for the given
+ *   @p $label_type_filter).  Array keys do not convey any specific meaning,
+ *   the corresponding values are again structured arrays, each with a pair of
+ *   'item' and 'selected_label' elements as follows.
+ *
+ *   - 'item': An item array, consisting of the following elements:
+ *
+ *        - 'type': Specifies the item type, which is either
+ *             VERSIONCONTROL_ITEM_FILE or VERSIONCONTROL_ITEM_DIRECTORY for
+ *             items that still exist, or VERSIONCONTROL_ITEM_FILE_DELETED
+ *             respectively VERSIONCONTROL_ITEM_DIRECTORY_DELETED for items
+ *             that have been removed.
+ *        - 'path': The path of the item at the specific revision.
+ *        - 'revision': The currently selected (file-level) revision of the
+ *             item. If there is no such revision (which may be the case for
+ *             directory items) then the 'revision' element is an empty string.
+ *
+ *        If the returned item is already present in the database, the
+ *        'item_revision_id' database identifier might also be filled in
+ *        (optional, depends on the VCS backend).
+ *
+ *   - 'selected_label':
+ *        A label array describing the selected label, with the following keys:
+ *
+ *        - 'name': The branch or tag name (a string).
+ *        - 'type': Whether this label is a branch (indicated by the
+ *             VERSIONCONTROL_OPERATION_BRANCH constant) or a tag
+ *             (VERSIONCONTROL_OPERATION_TAG).
+ *        - 'label_id': Optional. The label identifier (a simple integer), used
+ *             for unique identification of branches and tags in the database.
+ *
+ *   NULL is returned if the given item is not inside the repository,
+ *   or has not been inside the repository at the specified revision.
+ *   An empty array is returned if the item is valid, but no parallel sibling
+ *   items can be found for the given @p $label_type.
+ */
+function versioncontrol_fakevcs_get_parallel_items($repository, $item, $label_type_filter = NULL) {
+  // How CVS would probably do it, if for example
+  // $item['path'] == '/contributions/modules/versioncontrol/versioncontrol.module':
+  return array(
+    array(
+      'item' => array(
+        'type'     => VERSIONCONTROL_ITEM_FILE,
+        'path'     => '/contributions/modules/versioncontrol/versioncontrol.module',
+        'revision' => '1.23',
+      ),
+      'selected_label' => array(
+        'name' => 'HEAD',
+        'type' => VERSIONCONTROL_OPERATION_BRANCH,
+      ),
+    ),
+    array(
+      'item' => array(
+        'type'     => VERSIONCONTROL_ITEM_FILE,
+        'path'     => '/contributions/modules/versioncontrol/versioncontrol.module',
+        'revision' => '1.23.2.42',
+      ),
+      'selected_label' => array(
+        'name' => 'DRUPAL-5--1',
+        'type' => VERSIONCONTROL_OPERATION_BRANCH,
+      ),
+    ),
+    array(
+      'item' => array(
+        'type'     => VERSIONCONTROL_ITEM_FILE,
+        'path'     => '/contributions/modules/versioncontrol/versioncontrol.module',
+        'revision' => '1.23.2.42',
+      ),
+      'selected_label' => array(
+        'name' => 'DRUPAL-5--1-2',
+        'type' => VERSIONCONTROL_OPERATION_TAG,
+      ),
+    ),
+  );
+  // How SVN could also do it, if for example
+  // $item['path'] == '/trunk/contributions/modules/versioncontrol':
+  return array(
+    array(
+      'item' => array(
+        'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+        'path'     => '/trunk/contributions/modules/versioncontrol',
+        'revision' => '23',
+      ),
+      'selected_label' => array(
+        'name' => 'trunk',
+        'type' => VERSIONCONTROL_OPERATION_BRANCH,
+      ),
+    ),
+    array(
+      'item' => array(
+        'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+        'path'     => '/branches/5.x-1.x/contributions/modules/versioncontrol',
+        'revision' => '42',
+      ),
+      'selected_label' => array(
+        'name' => '5.x-1.x',
+        'type' => VERSIONCONTROL_OPERATION_BRANCH,
+      ),
+    ),
+  );
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_directory_contents():
+ * Retrieve the set of files and directories that exist at a specified revision
+ * in the given directory inside the repository.
+ *
+ * This function is optional for VCS backends to implement, be sure to check
+ * with versioncontrol_backend_implements($repository['vcs'], 'get_directory_contents')
+ * if the particular backend actually implements it.
+ *
+ * @param $repository
+ *   The repository that the directory item is located in.
+ * @param $directory_item
+ *   The parent item of the the items that should be listed.
+ * @param $recursive
+ *   If FALSE, only the direct children of $path will be retrieved.
+ *   If TRUE, you'll get every single descendant of $path.
+ *
+ * @return
+ *   A structured item array of items that have been inside the directory in
+ *   its given state, including the directory item itself. Array keys are the
+ *   current/new paths. The corresponding values are again structured arrays,
+ *   each with a pair of 'item' and 'selected_label' elements as follows.
+ *
+ *   - 'item': An item array, consisting of the following elements:
+ *
+ *        - 'type': Specifies the item type, which is either
+ *             VERSIONCONTROL_ITEM_FILE or VERSIONCONTROL_ITEM_DIRECTORY for
+ *             items that still exist, or VERSIONCONTROL_ITEM_FILE_DELETED
+ *             respectively VERSIONCONTROL_ITEM_DIRECTORY_DELETED for items
+ *             that have been removed.
+ *        - 'path': The path of the item at the specific revision.
+ *        - 'revision': The currently selected (file-level) revision of the
+ *             item. If there is no such revision (which may be the case for
+ *             directory items) then the 'revision' element is an empty string.
+ *
+ *        If the returned item is already present in the database, the
+ *        'item_revision_id' database identifier might also be filled in
+ *        (optional, depends on the VCS backend).
+ *
+ *   - 'selected_label':
+ *        In case no branch or tag applies to that item or could not be
+ *        retrieved for whatever reasons, the selected label can also be NULL.
+ *        Otherwise, it's a label array describing the selected label, with the
+ *        following keys:
+ *
+ *        - 'name': The branch or tag name (a string).
+ *        - 'type': Whether this label is a branch (indicated by the
+ *             VERSIONCONTROL_OPERATION_BRANCH constant) or a tag
+ *             (VERSIONCONTROL_OPERATION_TAG).
+ *
+ *   NULL is returned if the given item is not under version control,
+ *   or was not under version control at the time of the given revision.
+ *   The API module ensures that the passed item is a directory item.
+ */
+function versioncontrol_fakevcs_get_directory_contents($repository, $directory_item, $recursive = FALSE) {
+  // Assuming $parent_item is an item array that looks like this:
+  $directory_item = array(
+    'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+    'path'     => '/trunk/contributions/modules/versioncontrol',
+    'revision' => '666',
+  );
+  // $repository is some SVN repository and $recursive == FALSE. SVN without
+  // branch/tag emulation can return NULL for all the selected labels.
+
+  return array(
+    '/trunk/contributions/modules/versioncontrol' => array(
+      'item' => array( // == rtrim($path, '/')
+        'type'      => VERSIONCONTROL_ITEM_DIRECTORY,
+        'path'      => '/trunk/contributions/modules/versioncontrol',
+        'revision'  => '502',
+      ),
+      'selected_label' => NULL,
+    )
+    '/trunk/contributions/modules/versioncontrol/versioncontrol.module' => array(
+      'item' => array(
+        'type'      => VERSIONCONTROL_ITEM_FILE,
+        'path'      => '/trunk/contributions/modules/versioncontrol/versioncontrol.module',
+        'revision'  => '502',
+      ),
+      'selected_label' => NULL,
+    ),
+    '/trunk/contributions/modules/versioncontrol/versioncontrol.info' => array(
+      'item' => array(
+        'type'      => VERSIONCONTROL_ITEM_FILE,
+        'path'      => '/trunk/contributions/modules/versioncontrol/versioncontrol.info',
+        'revision'  => '404',
+      ),
+      'selected_label' => NULL,
+    ),
+    '/trunk/contributions/modules/versioncontrol/versioncontrol.install' => array(
+      'item' => array(
+        'type'      => VERSIONCONTROL_ITEM_FILE,
+        'path'      => '/trunk/contributions/modules/versioncontrol/versioncontrol.install',
+        'revision'  => '404',
+      ),
+      'selected_label' => NULL,
+    ),
+    '/trunk/contributions/modules/versioncontrol/README.txt' => array(
+      'item' => array(
+        'type'      => VERSIONCONTROL_ITEM_FILE,
+        'path'      => '/trunk/contributions/modules/versioncontrol/README.txt',
+        'revision'  => '404',
+      ),
+      'selected_label' => NULL,
+    ),
+    '/trunk/contributions/modules/versioncontrol/versioncontrol_fakevcs' => array(
+      'item' => array(
+        'type'      => VERSIONCONTROL_ITEM_DIRECTORY,
+        'path'      => '/trunk/contributions/modules/versioncontrol/versioncontrol_fakevcs.txt',
+        'revision'  => '497',
+      ),
+      'selected_label' => NULL,
+    ),
+  );
+
+  // Or the same thing in CVS - note that 'revision' is an empty string
+  // for directories, as CVS doesn't support versioned directories.
+  $directory_item = array(
+    'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+    'path'     => '/contributions/modules/versioncontrol',
+    'revision' => '',
+  );
+  // $repository is some CVS repository and $recursive == TRUE.
+  // For the purpose of example, we use the same label as the directory item.
+  // (Real-life usage might or might not require more correctness checks.)
+  $selected_label = versioncontrol_get_selected_label($directory_item);
+
+  return array(
+    '/contributions/modules/versioncontrol' => array(
+      'item' => array( // == rtrim($path, '/')
+        'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+        'path'     => '/contributions/modules/versioncontrol',
+        'revision' => '', // CVS doesn't track directory-level revisions
+      ),
+      'selected_label' => $selected_label,
+    ),
+    '/contributions/modules/versioncontrol/versioncontrol.module' => array(
+      'item' => array(
+        'type'     => VERSIONCONTROL_ITEM_FILE,
+        'path'     => '/contributions/modules/versioncontrol/versioncontrol.module',
+        'revision' => '1.19',
+      ),
+      'selected_label' => $selected_label,
+    ),
+    '/contributions/modules/versioncontrol/versioncontrol.info' => array(
+      'item' => array(
+        'type'     => VERSIONCONTROL_ITEM_FILE,
+        'path'     => '/contributions/modules/versioncontrol/versioncontrol.info',
+        'revision' => '1.1',
+      ),
+      'selected_label' => $selected_label,
+    ),
+    '/contributions/modules/versioncontrol/versioncontrol.install' => array(
+      'item' => array(
+        'type'     => VERSIONCONTROL_ITEM_FILE,
+        'path'     => '/contributions/modules/versioncontrol/versioncontrol.install',
+        'revision' => '1.5',
+      ),
+      'selected_label' => $selected_label,
+    ),
+    '/contributions/modules/versioncontrol/README.txt' => array(
+      'item' => array(
+        'type'     => VERSIONCONTROL_ITEM_FILE,
+        'path'     => '/contributions/modules/versioncontrol/README.txt',
+        'revision' => '1.1',
+      ),
+      'selected_label' => $selected_label,
+    ),
+    '/contributions/modules/versioncontrol/fakevcs_backend' => array(
+      'item' => array(
+        'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+        'path'     => '/contributions/modules/versioncontrol/fakevcs_backend',
+        'revision' => '',
+      ),
+      'selected_label' => $selected_label,
+    ),
+    '/contributions/modules/versioncontrol/fakevcs_backend/fakevcs_backend.module' => array(
+      'item' => array(
+        'type'     => VERSIONCONTROL_ITEM_FILE_DELETED, // only for non-atomic-commit VCSs (= CVS)
+        'path'     => '/contributions/modules/versioncontrol/fakevcs_backend/fakevcs_backend.module',
+        'revision' => '1.11', // last existing version
+      ),
+      'selected_label' => $selected_label,
+    ),
+    '/contributions/modules/versioncontrol/versioncontrol_fakevcs' => array(
+      'item' => array(
+        'type'     => VERSIONCONTROL_ITEM_DIRECTORY,
+        'path'     => '/contributions/modules/versioncontrol/versioncontrol_fakevcs',
+        'revision' => '',
+      ),
+      'selected_label' => $selected_label,
+    ),
+    '/contributions/modules/versioncontrol/versioncontrol_fakevcs/versioncontrol_fakevcs.module' => array(
+      'item' => array(
+        'type'     => VERSIONCONTROL_ITEM_FILE,
+        'path'     => '/contributions/modules/versioncontrol/versioncontrol_fakevcs/versioncontrol_fakevcs.module',
+        'revision' => '1.2',
+      ),
+      'selected_label' => $selected_label,
+    ),
+  );
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_open_file_handle():
+ * Retrieve a copy of the contents of a given item in the repository.
+ * (You won't get the original because repositories can often be remote.)
+ *
+ * If a file could not be created, backends should take care to delete any
+ * remaining temporary files before returning.
+ *
+ * This function is optional for VCS backends to implement, be sure to check
+ * with versioncontrol_backend_implements($repository['vcs'], 'export_file')
+ * if the particular backend actually implements it.
+ *
+ * @param $repository
+ *   The repository that the file item is located in.
+ * @param $file_item
+ *   The file item whose contents should be retrieved.
+ * @param $destination
+ *   The path where the copied file should be written to.
+ *
+ * @return
+ *   TRUE if the file was successfully created, FALSE if not.
+ *   The API module ensures that the passed item is a file item.
+ */
+function versioncontrol_fakevcs_export_file($repository, $file_item, $destination) {
+  exec('fakevcs cat '. $repository['root'] . $file_item['path'] .' > '. $destination,
+       $output, $return_code);
+
+  if ($return_code != 0) {
+    @unlink($destination);
+    return FALSE;
+  }
+  return TRUE;
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_get_file_annotation():
+ * Retrieve an array where each element represents a single line of the
+ * given file in the specified commit, annotated with the committer who last
+ * modified that line. Note that annotations are generally a quite slow
+ * operation, so expect this function to take a bit more time as well.
+ *
+ * This function is optional for VCS backends to implement, be sure to check
+ * with versioncontrol_backend_implements($repository['vcs'], 'get_file_annotation')
+ * if the particular backend actually implements it.
+ *
+ * @param $repository
+ *   The repository that the file item is located in.
+ * @param $file_item
+ *   The file item whose annotation should be retrieved.
+ *
+ * @return
+ *   A structured array that consists of one element per line, with
+ *   line numbers as keys (starting from 1) and a structured array as values,
+ *   where each of them consists of elements with the following keys:
+ *
+ *   - 'username': The system specific VCS username of the last committer.
+ *   - 'line': The contents of the line, without linebreak characters.
+ *
+ *   NULL is returned if the given item is not under version control,
+ *   or was not under version control at the time of the given revision,
+ *   or if it is marked as binary file.
+ *   The API module ensures that the passed item is a file item.
+ */
+function versioncontrol_fakevcs_get_file_annotation($repository, $file_item) {
+  // In case the file is marked as text file:
+  return array(
+    1 => array(
+      'username' => 'dries',
+      'line'     => '<?php',
+    ),
+    2 => array(
+      'username' => 'jpetso',
+      'line'     => '// $Id: versioncontrol_fakevcs.module,v 1.58 2009/03/21 01:06:27 jpetso Exp $',
+    ),
+  );
+}
+
+
+
+/**
+ * Implementation of [versioncontrol_backend]_operation():
+ * Act on database changes when commit, tag or branch operations are inserted
+ * or deleted. Note that this hook is not necessarily called at the time
+ * when the operation actually happens - operations can also be inserted
+ * by a cron script when the actual commit/branch/tag has been accomplished
+ * for quite a while already.
+ *
+ * This function is optional for backend modules to implement. If you don't
+ * need custom operation data, just don't implement it.
+ *
+ * @param $op
+ *   'insert' when the operation has just been recorded and inserted into the
+ *   database, or 'delete' if it will be deleted right after this hook
+ *   has been called.
+ *
+ * @param $operation
+ *   An operation array containing basic information about the commit, branch
+ *   or tag operation. It consists of the following elements:
+ *
+ *   - 'vc_op_id': The Drupal-specific operation identifier (a simple integer)
+ *        which is unique among all operations (commits, branch ops, tag ops)
+ *        in all repositories.
+ *   - 'type': The type of the operation - one of the
+ *        VERSIONCONTROL_OPERATION_{COMMIT,BRANCH,TAG} constants.
+ *        Note that if you pass branch or tag constraints, this function might
+ *        nevertheless return commit operations too - that happens for version
+ *        control systems without native branches or tags (like Subversion)
+ *        when a branch or tag is affected by the commit.
+ *   - 'repository': The repository where this operation occurred.
+ *        This is a structured "repository array", like is returned
+ *        by versioncontrol_get_repository().
+ *   - 'date': The time when the operation was performed, given as
+ *        Unix timestamp. (For commits, this is the time when the revision
+ *        was committed, whereas for branch/tag operations it is the time
+ *        when the files were branched or tagged.)
+ *   - 'uid': The Drupal user id of the operation author, or 0 if no
+ *        Drupal user could be associated to the author.
+ *   - 'username': The system specific VCS username of the author.
+ *   - 'message': The log message for the commit, tag or branch operation.
+ *        If a version control system doesn't support messages for any of them,
+ *        this element contains an empty string.
+ *   - 'revision': The VCS specific repository-wide revision identifier,
+ *        like '' in CVS, '27491' in Subversion or some SHA-1 key in various
+ *        distributed version control systems. If there is no such revision
+ *        (which may be the case for version control systems that don't support
+ *        atomic commits) then the 'revision' element is an empty string.
+ *        For branch and tag operations, this element indicates the
+ *        (repository-wide) revision of the files that were branched or tagged.
+ *
+ *   - 'labels': An array of branches or tags that were affected by this
+ *        operation. Branch and tag operations are known to only affect one
+ *        branch or tag, so for these there will be only one element (with 0
+ *        as key) in 'labels'. Commits might affect any number of branches,
+ *        including none. Commits that emulate branches and/or tags (like
+ *        in Subversion, where they're not a native concept) can also include
+ *        add/delete/move operations for labels, as detailed below.
+ *        Mind that the main development branch - e.g. 'HEAD', 'trunk'
+ *        or 'master' - is also considered a branch. Each element in 'labels'
+ *        is a structured array with the following keys:
+ *
+ *        - 'id': The label identifier (a simple integer), used for unique
+ *             identification of branches and tags in the database.
+ *        - 'name': The branch or tag name (a string).
+ *        - 'action': Specifies what happened to this label in this operation.
+ *             For plain commits, this is always VERSIONCONTROL_ACTION_MODIFIED.
+ *             For branch or tag operations (or commits that emulate those),
+ *             it can be either VERSIONCONTROL_ACTION_ADDED or
+ *             VERSIONCONTROL_ACTION_DELETED.
+ *
+ * @param $operation_items
+ *   A structured array containing all items that were affected by the above
+ *   operation. Array keys are the current/new paths, even if the item doesn't
+ *   exist anymore (as is the case with delete actions in commits).
+ *   The associated array elements are structured item arrays and consist of
+ *   the following elements:
+ *
+ *   - 'type': Specifies the item type, which is either
+ *        VERSIONCONTROL_ITEM_FILE or VERSIONCONTROL_ITEM_DIRECTORY for items
+ *        that still exist, or VERSIONCONTROL_ITEM_FILE_DELETED respectively
+ *        VERSIONCONTROL_ITEM_DIRECTORY_DELETED for items that have been
+ *        removed (by a commit's delete action).
+ *   - 'path': The path of the item at the specific revision.
+ *   - 'revision': The (file-level) revision when the item was changed.
+ *        If there is no such revision (which may be the case for
+ *        directory items) then the 'revision' element is an empty string.
+ *   - 'item_revision_id': Identifier of this item revision in the database.
+ *        Note that you can only rely on this element to exist for
+ *        operation items - functions that interface directly with the VCS
+ *        (such as versioncontrol_get_directory_contents() or
+ *        versioncontrol_get_parallel_items()) might not include
+ *        this identifier, for obvious reasons.
+ *
+ *   For commit operations, additional information about the origin of
+ *   the items is also available. The following elements will be set
+ *   for each item in addition to the ones listed above:
+ *
+ *   - 'action': Specifies how the item was changed.
+ *        One of the predefined VERSIONCONTROL_ACTION_* values.
+ *   - 'source_items': An array with the previous state(s) of the affected item.
+ *        Empty if 'action' is VERSIONCONTROL_ACTION_ADDED.
+ *   - 'replaced_item': The previous but technically unrelated item at the
+ *        same location as the current item. Only exists if this previous item
+ *        was deleted and replaced by a different one that was just moved
+ *        or copied to this location.
+ */
+function versioncontrol_fakevcs_operation($op, $operation, $operation_items) {
+  // Mmkay, with Version Control API not being able to extend operations
+  // anymore like in 5.x-1.x, I'm running out of good examples for this hook.
+  // But let's say we want to store the original branch for a commit, so that
+  // we can improve commit visualizations (should Version Control API
+  // respectively Commit Log support that sometime in the future).
+  if ($operation['type'] != VERSIONCONTROL_OPERATION_COMMIT) {
+    return; // Not interested in branch and tag operations.
+  }
+
+  switch ($op) {
+    case 'insert':
+      foreach ($operation['labels'] as $label) {
+        db_query(
+          "INSERT INTO {versioncontrol_fakevcs_original_commit_branches}
+          (vc_op_id, label_id) VALUES (%d, %d)",
+          $operation['vc_op_id'], $label['label_id']
+        );
+      }
+      break;
+
+    case 'delete':
+      db_query('DELETE FROM {versioncontrol_fakevcs_original_commit_branches}
+                WHERE vc_op_id = %d', $operation['vc_op_id']);
+      break;
+  }
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_account():
+ * Manage (insert, update or delete) additional FakeVCS user account data
+ * in the database.
+ *
+ * This function is optional for backend modules to implement. If you don't
+ * need custom repository data (or you let the Version Control API manage it),
+ * just don't implement it.
+ *
+ * @param $op
+ *   Either 'insert' when the account is in the process of being created,
+ *   or 'update' when username or VCS specific data change,
+ *   or 'delete' if it will be deleted after this function has been called.
+ * @param $uid
+ *   The Drupal user id corresponding to the VCS account.
+ * @param $username
+ *   The VCS specific username (a string).
+ * @param $repository
+ *   The repository where the user has its VCS account.
+ * @param $additional_data
+ *   An array of additional author information.
+ */
+function versioncontrol_fakevcs_account($op, $uid, $username, $repository, $additional_data = array()) {
+  $fakevcs_specific = $additional_data['fakevcs_specific'];
+
+  switch ($op) {
+    case 'insert':
+      if (!isset($fakevcs_specific) || !isset($fakevcs_specific['password'])) {
+        drupal_set_message(t('Error: no FakeVCS password given on account creation!'), 'error');
+        return;
+      }
+      db_query("INSERT INTO {versioncontrol_fakevcs_accounts}
+                (uid, repo_id, password)
+                VALUES (%d, %d, '%s')",
+                $uid, $repository['repo_id'], $fakevcs_specific['password']);
+      break;
+
+    case 'update':
+      if (!isset($fakevcs_specific) || !isset($fakevcs_specific['password'])) {
+        return; // the user didn't update the password in the process.
+      }
+      db_query("UPDATE {versioncontrol_fakevcs_accounts}
+                SET password = '%s'
+                WHERE uid = %d AND repo_id = %d",
+                $fakevcs_specific['password'], $uid, $repository['repo_id']);
+
+      if (!versioncontrol_admin_access()) {
+        // Admins get "The account has been updated successfully" anyways.
+        drupal_set_message(t('The FakeVCS password has been updated successfully.'));
+      }
+      break;
+
+    case 'delete':
+      db_query('DELETE FROM {versioncontrol_fakevcs_accounts}
+                WHERE uid = %d AND repo_id = %d',
+                $uid, $repository['repo_id']);
+      break;
+  }
+}
+
+/**
+ * Implementation of [versioncontrol_backend]_repository():
+ * Manage (insert, update or delete) additional FakeVCS repository data
+ * in the database.
+ *
+ * This function is optional for backend modules to implement. If you don't
+ * need custom repository data (or you let the Version Control API manage it),
+ * just don't implement it.
+ *
+ * @param $op
+ *   Either 'insert' when the repository has just been created, or 'update'
+ *   when repository name, root, URL backend or module specific data change,
+ *   or 'delete' if it will be deleted after this function has been called.
+ *
+ * @param $repository
+ *   The repository array containing the repository. It's a single
+ *   repository array like the one returned by versioncontrol_get_repository(),
+ *   so it consists of the following elements:
+ *
+ *   - 'repo_id': The unique repository id.
+ *   - 'name': The user-visible name of the repository.
+ *   - 'vcs': The unique string identifier of the version control system
+ *        that powers this repository.
+ *   - 'root': The root directory of the repository. In most cases,
+ *        this will be a local directory (e.g. '/var/repos/drupal'),
+ *        but it may also be some specialized string for remote repository
+ *        access. How this string may look like depends on the backend.
+ *   - 'authorization_method': The string identifier of the repository's
+ *        authorization method, that is, how users may register accounts
+ *        in this repository. Modules can provide their own methods
+ *        by implementing hook_versioncontrol_authorization_methods().
+ *   - 'url_backend': The prefix (excluding the trailing underscore)
+ *        for URL backend retrieval functions.
+ *   - '[xxx]_specific': An array of VCS specific additional repository
+ *        information. How this array looks like is defined by the
+ *        corresponding backend module (versioncontrol_[xxx]).
+ */
+function versioncontrol_fakevcs_repository($op, $repository) {
+  if ($op == 'delete') {
+    db_query('DELETE FROM {versioncontrol_fakevcs_repository_ponies}
+              WHERE repo_id = %d', $repository['repo_id']);
+  }
+}
+
+
+/**
+ * Implementation of [vcs_backend]_import_accounts():
+ * Import accounts into a repository, given text data from the accounts file.
+ * No accounts are deleted, new accounts are inserted, and existing accounts
+ * are updated with imported ones.
+ *
+ * This function is optional for backend modules to implement. If it's not
+ * implemented, the user will simply not be offered import functionality.
+ *
+ * @param $repository
+ *   The repository where the accounts will be imported.
+ * @param $data
+ *   The contents of the "account data" text area where the user has to
+ *   enter/copy the contents of the version control system's accounts file.
+ */
+function versioncontrol_fakevcs_import_accounts($repository, $data) {
+  $accounts = versioncontrol_fakevcs_parse_account_data($repository, $data);
+
+  foreach ($accounts as $account) {
+    $additional_data = array(
+      'fakevcs_specific' => array('password' => $password),
+    );
+    $username = $account['username'];
+    $uid = versioncontrol_get_account_uid_for_username($repository['repo_id'], $username, TRUE);
+
+    if (isset($uid)) {
+      versioncontrol_update_account($repository, $uid, $username, $additional_data);
+      $names[] = t('updated !username', array('!username' => $username));
+    }
+    else {
+      $uid = db_result(db_query("SELECT uid FROM {users} WHERE name = '%s'", $username));
+      if ($uid) {
+        versioncontrol_insert_account($repository, $uid, $username, $additional_data);
+        $names[] = t('added !username', array('!username' => $username));
+      }
+      else {
+        $names[] = t('didn\'t add !username (no matching Drupal username exists)',
+                      array('!username' => $username));
+      }
+    }
+  }
+}
+
+/**
+ * Implementation of [vcs_backend]_export_accounts():
+ * Export accounts of a repository to text data that is suitable for
+ * copying to the version control system's accounts file.
+ *
+ * This function is optional for backend modules to implement. If it's not
+ * implemented, the user will simply not be offered export functionality.
+ *
+ * @param $repository
+ *   The repository whose accounts will be exported.
+ * @param $accounts
+ *   The list (array) of accounts that should be exported, given in the same
+ *   format as the return value of versioncontrol_get_accounts().
+ *   All accounts in this list are from the above repository.
+ *
+ * @return
+ *   The exported textual representation of the account list.
+ */
+function versioncontrol_fakevcs_export_accounts($repository, $accounts) {
+  if (empty($accounts)) {
+    return '# '. t('no user accounts available to export');
+  }
+  $accounts_flat = array();
+  $uid_constraints = array();
+  $params = array($repository['repo_id']);
+
+  foreach ($accounts as $uid => $usernames_per_repository) {
+    foreach ($usernames_per_repository as $repo_id => $username) {
+      $accounts_flat[$uid] = array('uid' => $uid, 'username' => $username);
+      $uid_constraints[] = 'uid = %d';
+      $params[] = $uid;
+    }
+  }
+
+  $result = db_query('SELECT uid, password FROM {versioncontrol_fakevcs_accounts}
+                      WHERE repo_id = %d
+                       AND ('. implode(' OR ', $uid_constraints) .')',
+                      $params);
+  while ($account = db_fetch_object($result)) {
+    $accounts_flat[$account->uid]['password'] = $account->password;
+  }
+
+  $data = '';
+  foreach ($accounts_flat as $uid => $account) {
+    $data .= '# '. url('user/'. $uid, array('absolute' => TRUE))) ."\n";
+    $data .= $account['username'] .':'. $account['password'] ."\n";
+  }
+  return $data;
+}

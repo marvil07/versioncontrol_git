@@ -1,0 +1,27 @@
+/* $Id: commitlog.css,v 1.5 2009/01/02 19:13:18 jpetso Exp $ */
+
+.commitlog pre {
+  margin-top: 0.6em;
+  white-space: pre-wrap;       /* css-3 */
+  white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+  white-space: -pre-wrap;      /* Opera 4-6 */
+  white-space: -o-pre-wrap;    /* Opera 7 */
+  word-wrap: break-word;       /* Internet Explorer 5.5+ */
+}
+
+.commitlog .operation {
+  margin-top:    0.4em;
+  margin-bottom: 0.4em;
+}
+
+.commitlog .items {
+  line-height: 1.4em;
+}
+
+.commitlog .commitlog-messages {
+  margin-bottom: 2em;
+}
+
+.commitlog h3 {
+  margin-top: 1.0em;
+}
