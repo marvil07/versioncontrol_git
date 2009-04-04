@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_git.module,v 1.21.2.2 2009/03/23 00:54:27 marvil07 Exp $
+// $Id: versioncontrol_git.module,v 1.21.2.3 2009/04/04 13:56:14 marvil07 Exp $
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
