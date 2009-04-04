@@ -592,4 +592,5 @@ function _versioncontrol_git_log_construct_commit($repository, $commit_actions, 
 function versioncontrol_git_get_label_id($repo_id, $branch, $type) {
   $result = db_query('SELECT label_id FROM {versioncontrol_labels} WHERE repo_id = \'%s\' AND name = \'%s\' AND type = %s', $repository['repo_id'], $branch, VERSIONCONTROL_OPERATION_BRANCH);
   $branch_id = db_fetch_array($result);
+  return $branch_id;
 }
