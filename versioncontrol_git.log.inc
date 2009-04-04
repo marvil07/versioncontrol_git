@@ -437,7 +437,6 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range, &$commits, &
     }
     
     // Read file actions.
-    //FIXME ^^^
     do {
       if (preg_match('/^ (\S+) (\S+) (\S+) (.+)$/', $line, $matches)) { // Ensure that same file, they should be in same order.
         //echo "matched: $line with $matches[4]\n";
@@ -449,7 +448,6 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range, &$commits, &
     }
     while (($line = $next($logs)) !== FALSE);
     // Get the branches affected by the commit
-    //ATTENTION, affects $log variable, so it's the last in this func
     $branches = _versioncontrol_git_log_get_branches_by_rev($revision);
     $label = array(
       'name' => '', //filled later
