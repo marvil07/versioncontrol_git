@@ -16,27 +16,57 @@
  *   TRUE if the logs were updated, or FALSE if fetching and updating the logs
  *   failed for whatever reason.
  */
-/*
 function _versioncontrol_git_log_update_repository(&$repository) {
-  chdir($root = escapeshellcmd($repository['root'])); // Set working directory to root.
-  $latest_commits = _versioncontrol_git_get_lasest_commits($repository); // Get latest commits from database.
+  $root = escapeshellcmd($repository['root']);
+  chdir($root); // Set working directory to root.
   $branches = _versioncontrol_git_log_get_branches(); // Get the list of current branches from Git.
-
+  $constraints = array(
+    'vcs' => array('git'),
+    'repo_ids' => array($repository['repo_id']),
+    'types' => array(VERSIONCONTROL_OPERATION_BRANCH)
+  );
+  $options = array();
+  $existing_branch_ops = versioncontrol_get_operations($constraints, $options);
+  $existing_branches = array();
+  foreach($existing_branch_ops as $branch_op) {
+    if(!in_array($branch_op['labels'][0]['name'], $existing_branches)) {
+      $existing_branches[] = $branch_op['labels'][0]['name'];
+    }
+  }
+  
   // Check for any branches that are no longer part of the repository.
-  $obsolete_branches = array();
-  foreach ($latest_commits as $branch => $latest_commit) {
-    if (!in_array($branch, $branches)) {
-      $obsolete_branches[] = $branch;
-    }
-  }
-
+  $obsolete_branches = array_diff($existing_branches, $branches);
   // Check for new branches.
-  foreach ($branches as $branch) {
-    if (!array_key_exists($branch, $latest_commits)) {
-      $latest_commits[$branch] = FALSE; // Add to list so it will be processed later.
-    }
-  }
+  $new_branches = array_diff($branches, $existing_branches);
 
+  $op = array(
+    'type' => VERSIONCONTROL_OPERATION_BRANCH,
+    'repository' => $repository,
+    'date' => 0,//TODO: missing
+    'author' => '',//TODO: missing author
+    'message' => NULL, //not supported by git, is it?
+    'revision' => '', //there is non for git, or shall we take the latest commit form which we branched?
+    'labels' => array(
+      0 => array(
+        'name' => '', //filled later
+        'type' => VERSIONCONTROL_OPERATION_BRANCH,
+        'action' => VERSIONCONTROL_ACTION_ADDED
+      )
+    )
+  );
+  $op_items = array();
+  //new branches
+  foreach ($new_branches as $branch) {
+    $op['labels'][0]['name'] = $branch;
+    versioncontrol_insert_operation($op, $op_items);
+  }
+  //deleted branches
+  $op['labels'][0]['action'] = VERSIONCONTROL_ACTION_DELETED;
+  foreach ($obsolete_branches as $branch) {
+    $op['labels'][0]['name'] = $branch;
+    versioncontrol_insert_operation($op, $op_items);
+  }
+/*
   // Record new commits.
   $file_revisions = array();
   $previous_count = 0;
@@ -84,8 +114,9 @@ function _versioncontrol_git_log_update_repository(&$repository) {
 
   // Check tags.
   $tags = _versioncontrol_git_log_get_tags();
+  //TODO: update
   _versioncontrol_git_log_process_tags($repository, $tags);
-
+*/
   // Update repository updated field. Displayed on administration interface for documentation purposes.
   $repository['git_specific']['updated'] = time();
   db_query('UPDATE {versioncontrol_git_repositories}
@@ -93,7 +124,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
             $repository['git_specific']['updated'], $repository['repo_id']);
   return TRUE;
 }
-*/
+
 /**
  * Get an array containing branch name for key and the latest recorded commit
  * revision hash.
@@ -121,7 +152,6 @@ function _versioncontrol_git_get_lasest_commits($repository) {
  * @param reference $temp_file Reference to temporaray file.
  * @return mixed Logged output from the command in either array of file pointer form.
  */
-/*
 function _versioncontrol_git_log_exec($command, &$temp_file) {
   if (variable_get('versioncontrol_git_log_use_file', 1)) {
     $temp_dir = variable_get('file_directory_temp', (PHP_OS == 'WINNT' ? 'c:\\windows\\temp' : '/tmp'));
@@ -136,13 +166,13 @@ function _versioncontrol_git_log_exec($command, &$temp_file) {
   }
   return $logs;
 }
-*/
+
 /**
  * Get branches from Git using 'branch -l' command.
  * 
  * @return array List of branches.
  */
-/*
+
 function _versioncontrol_git_log_get_branches() {
   $logs = _versioncontrol_git_log_exec('git branch -l', $temp_file); // Query branches.
   $branches = _versioncontrol_git_log_parse_branches($logs); // Parse output.
@@ -152,11 +182,10 @@ function _versioncontrol_git_log_get_branches() {
   }
   return $branches;
 }
-*/
+
 /**
  * Parse the branch list output from Git.
  */
-/*
 function _versioncontrol_git_log_parse_branches(&$logs) {
   // If the log was retrieved by taking the return value of exec(), we've
   // got an array and navigate it via next(). If we stored the log in a
@@ -171,11 +200,10 @@ function _versioncontrol_git_log_parse_branches(&$logs) {
   }
   return $branches;
 }
-*/
+
 /**
  * Get tags from Git using 'tag -l' command.
  */
-/*
 function _versioncontrol_git_log_get_tags() {
   $logs = _versioncontrol_git_log_exec('git tag -l', $temp_file); // Query tags.
   $tags = _versioncontrol_git_log_parse_tags($logs); // Parse output.
@@ -185,7 +213,7 @@ function _versioncontrol_git_log_get_tags() {
   }
   return $tags;
 }
-*/
+
 /**
  * Parse the tag list output from Git.
  */
@@ -319,7 +347,6 @@ function _versioncontrol_git_log_get_commits($repository, &$file_revisions, $bra
  *       as string containing the name of the branch.
  * @param string $branch The curent branch.
  */
-/*
 function _versioncontrol_git_log_parse($repository, &$logs, &$file_revisions, $branch) {
   // If the log was retrieved by taking the return value of exec(), we've
   // got an array and navigate it via next(). If we stored the log in a
@@ -410,7 +437,7 @@ function _versioncontrol_git_log_parse($repository, &$logs, &$file_revisions, $b
     $file_revisions = array_merge($file_revisions, $revisions);
   } // Loop to the next revision.
 }
-*/
+
 /**
  * Get an already existing revision from the $file_revisions array with
  * the specified revision hash.

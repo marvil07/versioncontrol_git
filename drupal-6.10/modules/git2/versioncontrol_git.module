@@ -114,7 +114,7 @@ function versioncontrol_git_menu() {
  * Update repositories that have log fetching enabled.
  */
 function versioncontrol_git_cron() {
-  /*$result = db_query("SELECT repo_id FROM {versioncontrol_git_repositories}
+  $result = db_query("SELECT repo_id FROM {versioncontrol_git_repositories}
                       WHERE update_method = %d", VERSIONCONTROL_GIT_UPDATE_CRON);
 
   // Set timeout limit to 3600 seconds as it can take a long time to process
@@ -127,7 +127,7 @@ function versioncontrol_git_cron() {
     if (isset($repository)) {
       _versioncontrol_git_update_repository($repository);
     }
-  }*/
+  }
 }
 
 /**
@@ -764,7 +764,7 @@ function versioncontrol_git_get_parent_item($repository, $item, $parent_path = N
  * and branches by invoking the git executable, output messages and
  * redirect back to the repository page.
  */
-/*
+
 function versioncontrol_git_update_repository_callback($repo_id) {
   if (is_numeric($repo_id)) {
     $repository = versioncontrol_get_repository($repo_id);
@@ -782,12 +782,16 @@ function versioncontrol_git_update_repository_callback($repo_id) {
     if (_versioncontrol_git_update_repository($repository)) {
       drupal_set_message(t('Fetched new log entries.'));
     }
+    else
+    {
+      drupal_set_message(t('Error while fetching new log entries.'), 'error');
+    }
   }
   else { // $repo_id is not a number or doesn't correlate to any repository.
     drupal_set_message(t('No such repository, did not fetch anything.'));
   }
   drupal_goto('admin/project/versioncontrol-repositories');
-}*/
+}
 
 /**
  * Actually update the repository by fetching commits and other stuff
@@ -797,11 +801,11 @@ function versioncontrol_git_update_repository_callback($repo_id) {
  *   TRUE if the logs were updated, or FALSE if fetching and updating the logs
  *   failed for whatever reason.
  */
-/*
+
 function _versioncontrol_git_update_repository(&$repository) {
   include_once(drupal_get_path('module', 'versioncontrol_git') .'/versioncontrol_git.log.inc');
   return _versioncontrol_git_log_update_repository($repository);
-}*/
+}
 
 /**
  * Implementation of [versioncontrol_backend]_commit():
@@ -1086,17 +1090,3 @@ function versioncontrol_git_get_item_revision($item_revision_id) {
   ));
 }
 */
-/**
- * Implementation of [versioncontrol_backend]_is_valid_username():
- * checks if the username is valid
- * @TODO expand stub and research allowed characters for account names/authors
- * 
- * @return bool true if valid, false otherwise
- */
-function versioncontrol_git_is_valid_username($repository, $username) {
-  return true;
-  if (ereg("[^[:alnum:]]", $username)) {
-    return false;
-  }
-  return true; //stub
-}
