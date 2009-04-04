@@ -11,8 +11,9 @@
 /**
  * Implementation of hook_schema().
  */
+
 function versioncontrol_git_schema() {
-  $schema['versioncontrol_git_accounts'] = array(
+/*  $schema['versioncontrol_git_accounts'] = array(
     'description' => t('Git accounts.'),
     'fields' => array(
       'uid' => array(
@@ -38,7 +39,7 @@ function versioncontrol_git_schema() {
         ),
       ),
     'primary key' => array('uid', 'repo_id'),
-  );
+  );*/
 
   $schema['versioncontrol_git_repositories'] = array(
     'description' => t('Git repositories.'),
@@ -68,7 +69,7 @@ function versioncontrol_git_schema() {
     'primary key' => array('repo_id'),
   );
 
-  $schema['versioncontrol_git_commit_branches'] = array(
+/*  $schema['versioncontrol_git_commit_branches'] = array(
     'description' => t('Git commit branches.'), //FIXME not sure here about concept
     'fields' => array(
       'vc_op_id' => array(
@@ -226,9 +227,8 @@ function versioncontrol_git_schema() {
       ),
     'primary key' => array('item_revision_id', 'source_item_revision_id'),
   );
-
+*/
   return $schema;
-
 }
 
 /**
@@ -243,7 +243,7 @@ function versioncontrol_git_install() {
  */
 function versioncontrol_git_uninstall() {
   // Make sure we can access the required functions even from the .install file.
-  include_once(drupal_get_path('module', 'versioncontrol') .'/versioncontrol.module');
+  /*include_once(drupal_get_path('module', 'versioncontrol') .'/versioncontrol.module');
   include_once(drupal_get_path('module', 'versioncontrol_git') .'/versioncontrol_git.module');
 
   if (db_table_exists('versioncontrol_repositories')) {
@@ -256,5 +256,5 @@ function versioncontrol_git_uninstall() {
 
   drupal_uninstall_schema('versioncontrol_git');
 
-  variable_del('versioncontrol_git_log_use_file');
+  variable_del('versioncontrol_git_log_use_file');*/
 }
