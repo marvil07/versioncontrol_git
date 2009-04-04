@@ -1,6 +1,0 @@
-; $Id: commitlog.info,v 1.3 2009/01/02 20:36:43 jpetso Exp $
-name = "Commit Log"
-description = "Display a history of commits, branches and tags, optionally filtered by a set of constraint arguments."
-dependencies[] = versioncontrol
-package = Version Control
-core = 6.x
