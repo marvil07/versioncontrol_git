@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol-backend.inc,v 1.55 2009/03/31 08:54:00 jpetso Exp $
+// $Id: versioncontrol-backend.inc,v 1.56 2009/04/03 22:06:57 jpetso Exp $
 /**
  * @file
  * Version Control API - An interface to version control systems
@@ -101,7 +101,7 @@ function versioncontrol_has_write_access($operation, $operation_items) {
 
   // If the user doesn't have commit access at all, we can't allow this as well.
   if (!variable_get('versioncontrol_allow_unauthorized_access', 0)) {
-    if (!versioncontrol_is_account_authorized($operation['uid'], $operation['repository'])) {
+    if (!versioncontrol_is_account_authorized($operation['repository'], $operation['uid'])) {
       _versioncontrol_access_errors(array(t(
         '** ERROR: !user does not have commit access to this repository.',
         array('!user' => $operation['username'])

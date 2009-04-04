@@ -1,5 +1,5 @@
 <?php
-// $Id: hook_versioncontrol.php,v 1.10 2009/01/25 18:50:43 jpetso Exp $
+// $Id: hook_versioncontrol.php,v 1.11 2009/04/03 22:06:57 jpetso Exp $
 /**
  * @file
  * Version Control API - An interface to version control systems
@@ -415,6 +415,12 @@ function hook_versioncontrol_alter_repository_selection(&$repository_names, $rep
  * Let the Version Control API know whether the given VCS account
  * is authorized or not.
  *
+ * @param $repository
+ *   The repository where the status should be checked. (Note that the user's
+ *   authorization status may differ for each repository.)
+ * @param $uid
+ *   The user id of the checked account.
+ *
  * @return
  *   TRUE if the account is authorized, or FALSE if it's not.
  *
@@ -422,7 +428,7 @@ function hook_versioncontrol_alter_repository_selection(&$repository_names, $rep
  * @ingroup Authorization
  * @ingroup Target audience: Authorization control modules
  */
-function hook_versioncontrol_is_account_authorized($uid, $repository) {
+function hook_versioncontrol_is_account_authorized($repository, $uid) {
   if ($repository['authorization_method'] != 'mymodule_dojo_status') {
     return TRUE;
   }
