@@ -66,41 +66,97 @@ function _versioncontrol_git_log_update_repository(&$repository) {
     $op['labels'][0]['name'] = $branch;
     versioncontrol_insert_operation($op, $op_items);
   }
-/*
+
   // Record new commits.
   $file_revisions = array();
   $previous_count = 0;
-  foreach ($latest_commits as $branch => $latest_commit) {
-    // Generate either '[hash]..' or '[branch]' or '[hash]..[branch]' as range specification for git log.
-    $range = $latest_commit ? ($latest_commit .'..') : '';
-    if (!in_array($branch, $obsolete_branches)) { // If the branch is obsolete then use it as the ending portion of the range.
-      $range .= $branch;
+  $constraints = array(
+    'vcs' => array('git'),
+    'repo_ids' => array($repository['repo_id']),
+    'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
+    'date_lower' => $repository['git_specific']['updated'],
+    'branches' => array() // used in the loop
+  );
+  $options = array(
+    'query_type' => 'range',
+    'count' => 1,
+    'from' => 0
+  );
+  foreach ($branches as $branch) {
+    $commit_op = versioncontrol_get_operations($constraints, $options);
+    $latest_commit = FALSE;
+    if (!empty($commit_op)) {
+      foreach ($commit_op as $vc_op_id => $c_op) {
+        $latest_commit = $c_op['revision'];
+      }
     }
+    // Generate either '[branch]' or '[hash]..[branch]' as range specification for git log.
+    $range = $latest_commit ? ($latest_commit .'..') : '';
+    $range .= $branch;
 
     // Get logs from Git.
     _versioncontrol_git_log_get_commits($repository, $file_revisions, $branch, $range);
-
-    // If new revision set as latest revision.
-    if (count($file_revisions) > $previous_count) {
-      $latest_commits[$branch] = $file_revisions[$previous_count]->revision;
-      $previous_count = count($file_revisions);
-    }
-
-    $branch_id = versioncontrol_git_get_label_id($repository['repo_id'], $branch, VERSIONCONTROL_OPERATION_BRANCH);
-
-    if ($branch_id === FALSE) {
-       db_query('DELETE FROM {versioncontrol_git_latest_commits} WHERE branch_id = %d', $branch_id);
-
-      $lastest_commits_id = db_last_insert_id('{versioncontrol_git_latest_commits}_lastest_commits_id');
-      db_query("INSERT INTO {versioncontrol_git_latest_commits} (lastest_commits_id, repo_id, branch_id, revision) VALUES (%d, %d, %d, '%s')",
-        $lastest_commits_id, $repository['repo_id'], $branch_id, $latest_commits[$branch]);
-    }
   }
-
-  // Having retrieved the file revisions, insert those into the database
-  // as Version Control API commits.
-  _versioncontrol_git_log_process($repository, $file_revisions);
-
+  $op = array(
+    'type' => VERSIONCONTROL_OPERATION_COMMIT,
+    'repository' => $repository,
+    'date' => 0, //filled later
+    'author' => '',//filled later
+    'message' => '', //filled later
+    'revision' => '', //filled later
+    'labels' => array(
+      0 => array(
+        'name' => '', //filled later
+        'type' => VERSIONCONTROL_OPERATION_BRANCH,
+        'action' => VERSIONCONTROL_ACTION_MODIFIED
+      )
+    )
+  );
+  $op_items = array('/foo' => array('type' => VERSIONCONTROL_ITEM_FILE, 'path' => '/foo', 'revision' => '',
+    'action' => VERSIONCONTROL_ACTION_ADDED, 'source_items' => array()
+  ));
+  $commits = array();
+  $commit_items = array();
+  $i_rev = $file_revisions[0];
+  $i_rev = $i_rev->revision;
+  foreach ($file_revisions as $commit) {
+    $commits[$commit->revision] = array(
+         'type' => VERSIONCONTROL_OPERATION_COMMIT,
+         'repository' => $repository,
+         'date' => $commit->date,
+         'author' => $commit->username,
+         'message' => $commit->message,
+         'revision' => $commit->revision,
+         'labels' => array()
+    );
+    foreach ($commit->branches as $branch) {
+      $commits[$commit->revision]['labels'][] = array(
+            'type' => VERSIONCONTROL_OPERATION_BRANCH,
+            'action' => VERSIONCONTROL_ACTION_MODIFIED,
+            'name' => $branch
+      );
+    }
+    if (!isset($commit_items[$commit->revision])) {
+      $commit_items[$commit->revision] = array();
+    }
+    $commit_items[$commit->revision][$commit->path] = array(
+         'type' => VERSIONCONTROL_ITEM_FILE,
+         'path' => $commit->path,
+         'revision' => $commit->revision,
+         'action' => $commit->action,
+         'line_changes' => array(
+            'added' => $commit->lines_added,
+            'removed' => $commit->lines_removed
+         ),
+         'source_items' => array() //I have no idea what's wanted here...
+    );
+  }
+  foreach ($commits as $revision => $op) {
+    versioncontrol_insert_operation($op, $commit_items[$revision]);
+  }
+  
+  
+/*
   // Check tags.
   $tags = _versioncontrol_git_log_get_tags();
   //TODO: update
@@ -346,7 +402,7 @@ function _versioncontrol_git_log_get_commits($repository, &$file_revisions, $bra
  *   - message: The commit message (a string with possible line breaks).
  *   - branch: The branch that this file revision was committed to,
  *       as string containing the name of the branch.
- * @param string $branch The curent branch.
+ * @param string $branch The current branch.
  */
 function _versioncontrol_git_log_parse($repository, &$logs, &$file_revisions, $branch) {
   // If the log was retrieved by taking the return value of exec(), we've
@@ -365,6 +421,7 @@ function _versioncontrol_git_log_parse($repository, &$logs, &$file_revisions, $b
     $revision = $matches[1];
 
     $line = $next($logs);
+    //TODO: we want full acc names, or what do you think?
     if (preg_match('/^Author: ([^<]+)/', $line, $matches)) { // Ignore e-mail address.
       $author = trim($matches[1]);
     }
@@ -443,7 +500,6 @@ function _versioncontrol_git_log_parse($repository, &$logs, &$file_revisions, $b
  * Get an already existing revision from the $file_revisions array with
  * the specified revision hash.
  */
-/*
 function _versioncontrol_git_log_get_duplicate_revision(&$file_revisions, $revision) {
   foreach ($file_revisions as $file_revision) {
     if ($file_revision->revision == $revision) {
@@ -452,7 +508,7 @@ function _versioncontrol_git_log_get_duplicate_revision(&$file_revisions, $revis
   }
   return NULL;
 }
-*/
+
 
 /**
  * Update the database by processing and inserting the previously retrieved
