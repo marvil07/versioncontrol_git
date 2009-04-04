@@ -1,9 +1,5 @@
 <?php
-<<<<<<< HEAD:versioncontrol_git.log.inc
 // $Id: versioncontrol_git.log.inc,v 1.27.2.1 2009/04/04 13:54:58 marvil07 Exp $
-=======
-// $Id: versioncontrol_git.log.inc,v 1.27 2009/03/18 01:27:05 marvil07 Exp $
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.log.inc
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -21,27 +17,6 @@
  *   failed for whatever reason.
  */
 function _versioncontrol_git_log_update_repository(&$repository) {
-<<<<<<< HEAD:versioncontrol_git.log.inc
-  chdir($root = escapeshellcmd($repository['root'])); // Set working directory to root.
-  $latest_commits = _versioncontrol_git_get_lasest_commits($repository); // Get latest commits from database.
-  $branches = _versioncontrol_git_log_get_branches(); // Get the list of current branches from Git.
-
-  // Check for any branches that are no longer part of the repository.
-  $obsolete_branches = array();
-  foreach ($latest_commits as $branch => $latest_commit) {
-    if (!in_array($branch, $branches)) {
-      $obsolete_branches[] = $branch;
-    }
-  }
-
-  // Check for new branches.
-  foreach ($branches as $branch) {
-    if (!array_key_exists($branch, $latest_commits)) {
-      $latest_commits[$branch] = FALSE; // Add to list so it will be processed later.
-    }
-  }
-
-=======
   $root = escapeshellcmd($repository['root']);
   chdir($root); // Set working directory to root.
   $branches = _versioncontrol_git_log_get_branches(); // Get the list of current branches from Git.
@@ -92,7 +67,6 @@ function _versioncontrol_git_log_update_repository(&$repository) {
     versioncontrol_insert_operation($op, $op_items);
   }
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.log.inc
   // Record new commits.
   $file_revisions = array();
   $previous_count = 0;
@@ -112,16 +86,10 @@ function _versioncontrol_git_log_update_repository(&$repository) {
       $previous_count = count($file_revisions);
     }
 
-<<<<<<< HEAD:versioncontrol_git.log.inc
     $branch_id = versioncontrol_git_get_label_id($repository['repo_id'], $branch, VERSIONCONTROL_OPERATION_BRANCH);
 
     if ($branch_id === FALSE) {
-=======
-    $branch_id = NULL;//versioncontrol_ensure_branch($branch, $repository['repo_id']);
-
-    if ($branch_id !== NULL) {
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.log.inc
-      db_query('DELETE FROM {versioncontrol_git_latest_commits} WHERE branch_id = %d', $branch_id);
+       db_query('DELETE FROM {versioncontrol_git_latest_commits} WHERE branch_id = %d', $branch_id);
 
       $lastest_commits_id = db_last_insert_id('{versioncontrol_git_latest_commits}_lastest_commits_id');
       db_query("INSERT INTO {versioncontrol_git_latest_commits} (lastest_commits_id, repo_id, branch_id, revision) VALUES (%d, %d, %d, '%s')",
@@ -146,14 +114,9 @@ function _versioncontrol_git_log_update_repository(&$repository) {
 
   // Check tags.
   $tags = _versioncontrol_git_log_get_tags();
-<<<<<<< HEAD:versioncontrol_git.log.inc
-  _versioncontrol_git_log_process_tags($repository, $tags);
-
-=======
   //TODO: update
   _versioncontrol_git_log_process_tags($repository, $tags);
 */
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.log.inc
   // Update repository updated field. Displayed on administration interface for documentation purposes.
   $repository['git_specific']['updated'] = time();
   db_query('UPDATE {versioncontrol_git_repositories}
@@ -166,10 +129,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
  * Get an array containing branch name for key and the latest recorded commit
  * revision hash.
  */
-<<<<<<< HEAD:versioncontrol_git.log.inc
-=======
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.log.inc
 function _versioncontrol_git_get_lasest_commits($repository) {
   $result = db_query('SELECT *
     FROM {versioncontrol_git_latest_commits} c
@@ -184,11 +144,8 @@ function _versioncontrol_git_get_lasest_commits($repository) {
   }
   return $latest_commits;
 }
-<<<<<<< HEAD:versioncontrol_git.log.inc
-
-=======
 */
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.log.inc
+
 /**
  * Execute a Git command using the root context and the command to be executed.
  * 
@@ -216,10 +173,6 @@ function _versioncontrol_git_log_exec($command, &$temp_file) {
  * 
  * @return array List of branches.
  */
-<<<<<<< HEAD:versioncontrol_git.log.inc
-=======
-
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.log.inc
 function _versioncontrol_git_log_get_branches() {
   $logs = _versioncontrol_git_log_exec('git branch -l', $temp_file); // Query branches.
   $branches = _versioncontrol_git_log_parse_branches($logs); // Parse output.
@@ -301,10 +254,7 @@ function _versioncontrol_git_log_parse_tags(&$logs) {
  * @param array $repository The repository array, as given by the Version Control API.
  * @param array $tags List of tags to process.
  */
-<<<<<<< HEAD:versioncontrol_git.log.inc
-=======
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.log.inc
 function _versioncontrol_git_log_process_tags($repository, $tags) {
   $tag_actions = array();
 
@@ -345,7 +295,6 @@ function _versioncontrol_git_log_process_tags($repository, $tags) {
   ksort($tag_actions);
   foreach ($tag_actions as $date => $date_tag_actions) {
     foreach ($date_tag_actions as $tag_actions_info) {
-<<<<<<< HEAD:versioncontrol_git.log.inc
       $tag_operation = array(
         'type' => VERSIONCONTROL_OPERATION_TAG,
         'repository' => $repository,
@@ -361,14 +310,8 @@ function _versioncontrol_git_log_process_tags($repository, $tags) {
     }
   }
 }
-
-=======
-      versioncontrol_insert_tag_operation($tag_actions_info[0], $tag_actions_info[1]);
-    }
-  }
-}
 */
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.log.inc
+
 /**
  * Get all commits from Git using 'git log' command.
  */
@@ -511,10 +454,7 @@ function _versioncontrol_git_log_parse($repository, &$logs, &$file_revisions, $b
  * Get an already existing revision from the $file_revisions array with
  * the specified revision hash.
  */
-<<<<<<< HEAD:versioncontrol_git.log.inc
-=======
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.log.inc
 function _versioncontrol_git_log_get_duplicate_revision(&$file_revisions, $revision) {
   foreach ($file_revisions as $file_revision) {
     if ($file_revision->revision == $revision) {
@@ -523,11 +463,8 @@ function _versioncontrol_git_log_get_duplicate_revision(&$file_revisions, $revis
   }
   return NULL;
 }
-<<<<<<< HEAD:versioncontrol_git.log.inc
-
-=======
 */
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.log.inc
+
 /**
  * Update the database by processing and inserting the previously retrieved
  * file revision objects.
@@ -538,10 +475,7 @@ function _versioncontrol_git_log_get_duplicate_revision(&$file_revisions, $revis
  *   A simple, flat list of file revision objects - the combined set of
  *   return values from _versioncontrol_git_log_parse().
  */
-<<<<<<< HEAD:versioncontrol_git.log.inc
-=======
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.log.inc
 function _versioncontrol_git_log_process($repository, $file_revisions) {
   $commit_actions = array();
 
@@ -631,7 +565,6 @@ function _versioncontrol_git_log_process($repository, $file_revisions) {
         $commit_info->commit_actions[$path]['source items'][0]['revision'] = versioncontrol_git_get_current_revision($repository['repo_id'], $commit_action['source items'][0]['path']);
       }
 
-<<<<<<< HEAD:versioncontrol_git.log.inc
       $commit_operation = array(
         'type' => VERSIONCONTROL_OPERATION_COMMIT,
         'repository' => $repository,
@@ -645,24 +578,15 @@ function _versioncontrol_git_log_process($repository, $file_revisions) {
     }
   }
 }
-
-=======
-      versioncontrol_insert_operation($commit_info->commit, $commit_info->commit_actions);
-    }
-  }
-}
 */
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.log.inc
+
 /**
  * Use the additional file revision information that has been stored
  * in each commit action array in order to assemble the associated commit.
  * That commit information is then stored as a list item in the given
  * $commits array as an object with 'commit' and 'commit_actions' properties.
  */
-<<<<<<< HEAD:versioncontrol_git.log.inc
-=======
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.log.inc
 function _versioncontrol_git_log_construct_commit($repository, $commit_actions, &$commits) {
   $date = 0;
 
@@ -681,11 +605,7 @@ function _versioncontrol_git_log_construct_commit($repository, $commit_actions, 
   // if it doesn't exist yet.
   $branch_ids = array();
   foreach ($file_revision->branches as $branch) {
-<<<<<<< HEAD:versioncontrol_git.log.inc
     $branch_ids[] = versioncontrol_git_get_label_id($repository['repo_id'], $branch, VERSIONCONTROL_OPERATION_BRANCH);
-=======
-   // $branch_ids[] = versioncontrol_ensure_branch($branch, $repository['repo_id']);
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.log.inc
   }
 
   // Yay, we have all commit actions and all information. Ready to go!
@@ -705,7 +625,7 @@ function _versioncontrol_git_log_construct_commit($repository, $commit_actions, 
   $commit_info->commit_actions = $commit_actions;
   $commits[$date][] = $commit_info;
 }
-<<<<<<< HEAD:versioncontrol_git.log.inc
+*/
 
 /**
  * FIXME: api for retrieve branch id?
@@ -716,6 +636,4 @@ function versioncontrol_git_get_label_id($repo_id, $branch, $type) {
   $branch_id = db_fetch_array($result);
   return $branch_id;
 }
-=======
-*/
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.log.inc
+

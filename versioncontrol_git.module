@@ -1,9 +1,5 @@
 <?php
-<<<<<<< HEAD:versioncontrol_git.module
 // $Id: versioncontrol_git.module,v 1.21.2.3 2009/04/04 13:56:14 marvil07 Exp $
-=======
-// $Id: versioncontrol_git.module,v 1.21 2009/03/18 01:27:05 marvil07 Exp $
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 /**
  * @file
  * Git backend for Version Control API - Provides Git commit information and
@@ -72,11 +68,7 @@ function versioncontrol_git_versioncontrol_backends() {
       'name' => 'Git',
 
       // A short description of the VCS, if possible not longer than one or two sentences.
-<<<<<<< HEAD:versioncontrol_git.module
       'description' => t('Git is a fast, scalable, distributed revision control system with an unusually rich command set that provides both high-level operations and full access to internals.'),
-=======
-      'description' => t('Git (Fast Version Control System) is a version control system designed to handle very large projects with speed and efficiency; it is used mainly for various open source projects, most notably the Linux kernel.'),
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 
       // A list of optional capabilities, in addition to the required retrieval
       // of detailed commit information.
@@ -103,19 +95,11 @@ function versioncontrol_git_versioncontrol_backends() {
  * Implementation of hook_menu().
  */
 function versioncontrol_git_menu() {
-<<<<<<< HEAD:versioncontrol_git.module
-=======
-  global $user;
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
   $items = array();
 
   $items['admin/project/versioncontrol-repositories/update/git'] = array(
     'title' => 'Fetch log',
     'page callback' => 'versioncontrol_git_update_repository_callback',
-<<<<<<< HEAD:versioncontrol_git.module
-=======
-    'access callback' => 'user_access',
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
     'access arguments' => array('administer version control systems'),
     'type' => MENU_CALLBACK,
   );
@@ -141,37 +125,6 @@ function versioncontrol_git_cron() {
     if (isset($repository)) {
       _versioncontrol_git_update_repository($repository);
     }
-  }
-}
-
-/**
-<<<<<<< HEAD:versioncontrol_git.module
-=======
- * Implementation of [versioncontrol_backend]_format_revision_identifier():
- * Get the user-visible version of a commit identifier a.k.a. 'revision',
- * as plaintext.
- *
- * Version control backends can choose to implement their own version of this
- * function, which for example makes it possible to cut the SHA-1 hash in
- * distributed version control systems down to a readable length.
- *
- * @param $revision
- *   The commit identifier that should be themed.
- * @param $format
- *   Either 'full' for the original version, or 'short' for a more compact form.
- *   If the commit identifier doesn't need to be shortened, the results can
- *   be the same for both versions.
- */
-function versioncontrol_git_format_revision_identifier($revision, $format = 'full') {
-  switch ($format) {
-    case 'full':
-      return $revision;
-    case 'short':
-    default:
-      // $revision == '30581e4ec3347d1294ec05a91eec1a8588e5993c'
-      // Let's return only the first 12 characters of the revision identifier,
-      // like Mercurial (including hgweb) does by default.
-      return substr($revision, 0, 12);
   }
 }
 
@@ -371,7 +324,6 @@ function versioncontrol_git_is_account_username_valid($repository, &$username) {
 
 
 /**
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
  * Implementation of [versioncontrol_backend]_alter_commits():
  * Add VCS specific repository data into a $commit['[xxx]_specific'] array,
  * and/or unset commits that don't match VCS specific filter constraints.
@@ -396,10 +348,7 @@ function versioncontrol_git_is_account_username_valid($repository, &$username) {
  *   the CVS ones, the array would maybe contain a 'modules' constraint
  *   for filtering by module.
  */
-<<<<<<< HEAD:versioncontrol_git.module
-=======
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 function versioncontrol_git_alter_commits(&$commits, $fakevcs_specific_constraints = array()) {
   foreach ($commits as $key => $commit) {
     // Disregard commits from other backends.
@@ -419,11 +368,8 @@ function versioncontrol_git_alter_commits(&$commits, $fakevcs_specific_constrain
     $commits[$key]['git_specific'] = array_merge($commit['git_specific'], $additions);
   }
 }
-<<<<<<< HEAD:versioncontrol_git.module
-
-=======
 */
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
+
 /**
  * Implementation of [versioncontrol_backend]_get_commit_actions():
  * Retrieve detailed information about what happened in a single commit.
@@ -467,10 +413,8 @@ function versioncontrol_git_alter_commits(&$commits, $fakevcs_specific_constrain
  *                     item info. ("[xxx]" is the unique string identifier
  *                     of the respective version control system.)
  */
-<<<<<<< HEAD:versioncontrol_git.module
-=======
+
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 function versioncontrol_git_get_commit_actions($commit) {
   include_once(drupal_get_path('module', 'versioncontrol_git') .'/versioncontrol_git.log.inc');
 
@@ -520,11 +464,7 @@ function versioncontrol_git_get_commit_actions($commit) {
 //  var_dump($actions);
 
   return $actions;
-<<<<<<< HEAD:versioncontrol_git.module
-}
-=======
 }*/
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 
 /**
  * Implementation of [versioncontrol_backend]_get_commit_statistics():
@@ -548,10 +488,8 @@ function versioncontrol_git_get_commit_actions($commit) {
  *   - 'lines_added': Number of lines added in this action
  *   - 'lines_removed': Number of lines removed in this action
  */
-<<<<<<< HEAD:versioncontrol_git.module
-=======
+
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 function versioncontrol_git_get_commit_statistics($commit, $commit_actions = NULL) {
   if ($commit_actions == NULL) {
     $commit_actions = versioncontrol_git_get_commit_actions($commit);
@@ -578,11 +516,8 @@ function versioncontrol_git_get_commit_statistics($commit, $commit_actions = NUL
     'per_action_statistics' => $per_action,
   );
 }
-<<<<<<< HEAD:versioncontrol_git.module
-
-=======
 */
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
+
 /**
  * Implementation of [versioncontrol_backend]_get_directory_item():
  * Retrieve the item of the deepest-level directory in the repository that is
@@ -609,10 +544,9 @@ function versioncontrol_git_get_commit_statistics($commit, $commit_actions = NUL
  *        item info. ("[xxx]" is the unique string identifier
  *        of the respective version control system.)
  */
-<<<<<<< HEAD:versioncontrol_git.module
-=======
+
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
+
 function versioncontrol_git_get_directory_item($operation) {
   $item = array(
     'type' => VERSIONCONTROL_ITEM_DIRECTORY,
@@ -628,11 +562,8 @@ function versioncontrol_git_get_directory_item($operation) {
   }
   return $item;
 }
-<<<<<<< HEAD:versioncontrol_git.module
-
-=======
 */
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
+
 /**
  * Implementation of [versioncontrol_backend]_get_commit_branches():
  * Retrieve the branches that have been affected by the given commit.
@@ -641,10 +572,8 @@ function versioncontrol_git_get_directory_item($operation) {
  *   An array of strings that identify a branch in the respective repository,
  *   or an empty array if no branches were affected at all.
  */
-<<<<<<< HEAD:versioncontrol_git.module
-=======
+
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 function versioncontrol_git_get_commit_branches($commit) {
   if (!isset($commit['git_specific']['branch_ids'])) {
     return array();
@@ -658,11 +587,8 @@ function versioncontrol_git_get_commit_branches($commit) {
   }
   return $branches;
 }
-<<<<<<< HEAD:versioncontrol_git.module
-
-=======
 */
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
+
 /**
  * Retrieve the set of items that were affected by a branch operation.
  *
@@ -689,16 +615,11 @@ function versioncontrol_git_get_commit_branches($commit) {
  *        item info. ("[xxx]" is the unique string identifier of the respective
  *        version control system.)
  */
-<<<<<<< HEAD:versioncontrol_git.module
-function versioncontrol_git_get_branched_items($branch) {
-  return array(); // Branches affect whole repository.
-}
-=======
+
 /*
 function versioncontrol_git_get_branched_items($branch) {
   return array(); // Branches affect whole repository.
 }*/
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 
 /**
  * Retrieve the set of items that were affected by a tag operation.
@@ -726,16 +647,11 @@ function versioncontrol_git_get_branched_items($branch) {
  *        item info. ("[xxx]" is the unique string identifier of the respective
  *        version control system.)
  */
-<<<<<<< HEAD:versioncontrol_git.module
-function versioncontrol_git_get_tagged_items($tag) {
-  return array();
-}
-=======
+
 /*
 function versioncontrol_git_get_tagged_items($tag) {
   return array();
 }*/
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 
 /**
  * Implementation of [versioncontrol_backend]_get_current_item_branch():
@@ -753,10 +669,8 @@ function versioncontrol_git_get_tagged_items($tag) {
  *   A string containing the current item branch, or NULL if no branch
  *   is known or applicable.
  */
-<<<<<<< HEAD:versioncontrol_git.module
-=======
+
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 function versioncontrol_git_get_current_item_branch($repository, $item) {
   if (!isset($item['git_specific']['selected_branch_id'])) {
     return NULL;
@@ -767,11 +681,7 @@ function versioncontrol_git_get_current_item_branch($repository, $item) {
     return NULL;
   }
   return $branch['branch_name'];
-<<<<<<< HEAD:versioncontrol_git.module
-}
-=======
 }*/
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 
 /**
  * Implementation of [versioncontrol_backend]_get_current_item_tag():
@@ -787,21 +697,16 @@ function versioncontrol_git_get_current_item_branch($repository, $item) {
  *   of versioncontrol_get_tag_operation(), or NULL if no tag
  *   is known or applicable.
  */
-<<<<<<< HEAD:versioncontrol_git.module
-=======
+
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 function versioncontrol_git_get_current_item_tag($repository, $item) {
   if ($item['git_specific']['selected_op']['type'] != VERSIONCONTROL_OPERATION_TAG) {
     return NULL;
   }
   return $item['git_specific']['selected_op'];
 }
-<<<<<<< HEAD:versioncontrol_git.module
-
-=======
 */
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
+
 /**
  * Implementation of [vcs_backend]_get_parent_item():
  * Retrieve the parent (directory) item of a given item.
@@ -822,10 +727,8 @@ function versioncontrol_git_get_current_item_tag($repository, $item) {
  *   If the given directory path does not correspond to a parent item,
  *   NULL is returned.
  */
-<<<<<<< HEAD:versioncontrol_git.module
-=======
+
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 function versioncontrol_git_get_parent_item($repository, $item, $parent_path = NULL) {
   if (!isset($parent_path)) {
     $item['path'] = dirname($item['path']);
@@ -836,11 +739,7 @@ function versioncontrol_git_get_parent_item($repository, $item, $parent_path = N
     return $item;
   }
   return NULL;
-<<<<<<< HEAD:versioncontrol_git.module
-}
-=======
 }*/
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 
 /**
  * Menu callback for 'admin/project/versioncontrol-repositories/update/git'
@@ -849,10 +748,6 @@ function versioncontrol_git_get_parent_item($repository, $item, $parent_path = N
  * and branches by invoking the git executable, output messages and
  * redirect back to the repository page.
  */
-<<<<<<< HEAD:versioncontrol_git.module
-=======
-
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 function versioncontrol_git_update_repository_callback($repo_id) {
   if (is_numeric($repo_id)) {
     $repository = versioncontrol_get_repository($repo_id);
@@ -870,13 +765,10 @@ function versioncontrol_git_update_repository_callback($repo_id) {
     if (_versioncontrol_git_update_repository($repository)) {
       drupal_set_message(t('Fetched new log entries.'));
     }
-<<<<<<< HEAD:versioncontrol_git.module
-=======
     else
     {
       drupal_set_message(t('Error while fetching new log entries.'), 'error');
     }
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
   }
   else { // $repo_id is not a number or doesn't correlate to any repository.
     drupal_set_message(t('No such repository, did not fetch anything.'));
@@ -892,10 +784,6 @@ function versioncontrol_git_update_repository_callback($repo_id) {
  *   TRUE if the logs were updated, or FALSE if fetching and updating the logs
  *   failed for whatever reason.
  */
-<<<<<<< HEAD:versioncontrol_git.module
-=======
-
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 function _versioncontrol_git_update_repository(&$repository) {
   include_once(drupal_get_path('module', 'versioncontrol_git') .'/versioncontrol_git.log.inc');
   return _versioncontrol_git_log_update_repository($repository);
@@ -916,10 +804,8 @@ function _versioncontrol_git_update_repository(&$repository) {
  *   each item in this commit. The structure of this array is the same as
  *   the return value of versioncontrol_get_commit_actions().
  */
-<<<<<<< HEAD:versioncontrol_git.module
-=======
+
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 function versioncontrol_git_commit($op, $commit, $commit_actions) {
   switch ($op) {
     case 'insert':
@@ -942,7 +828,6 @@ function versioncontrol_git_commit($op, $commit, $commit_actions) {
           $revision = $action['git_specific']['revision'];
         }
 
-<<<<<<< HEAD:versioncontrol_git.module
         $vcgit_item_revision = array(
           'vc_op_id' => $commit['vc_op_id'],
           'type' => $type,
@@ -952,27 +837,10 @@ function versioncontrol_git_commit($op, $commit, $commit_actions) {
           'lines_removed' => $action['git_specific']['lines_removed'],
         );
         drupal_write_record('versioncontrol_git_item_revisions', $vcgit_item_revision);
-=======
-        $item_revision_id = db_last_insert_id('{versioncontrol_git_item_revisions}_item_revision_id');
-        db_query(
-          "INSERT INTO {versioncontrol_git_item_revisions}
-           (item_revision_id, vc_op_id, type, path,
-            action, lines_added, lines_removed)
-           VALUES (%d, %d, %d, '%s', %d, %d, %d)",
-          $item_revision_id, $commit['vc_op_id'], $type, $path,
-          $action['action'], $action['git_specific']['lines_added'],
-          $action['git_specific']['lines_removed']
-        );
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
-
         db_query("INSERT INTO {versioncontrol_git_item_source_revisions}
                   (item_revision_id, source_item_revision_id)
                   VALUES (%d, %d)",
-<<<<<<< HEAD:versioncontrol_git.module
           $vcgit_item_revision['item_revision_id'],
-=======
-          $item_revision_id,
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
           _versioncontrol_git_get_item_revision_id($action['source items'][0]['path'], $action['source items'][0]['revision']));
       }
       break;
@@ -1002,19 +870,13 @@ function versioncontrol_git_commit($op, $commit, $commit_actions) {
       break;
   }
 }
-<<<<<<< HEAD:versioncontrol_git.module
-
-=======
 */
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
+
 /**
  * Get the item_revision_id for the revision with the specified path
  * and revision hash.
  */
-<<<<<<< HEAD:versioncontrol_git.module
-=======
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 function _versioncontrol_git_get_item_revision_id($path, $revision) {
   $result = db_result(db_query("SELECT ir.item_revision_id
                                 FROM {versioncontrol_git_item_revisions} ir
@@ -1023,11 +885,7 @@ function _versioncontrol_git_get_item_revision_id($path, $revision) {
                                 WHERE ir.path = '%s' AND c.revision = '%s'",
                                 $path, $revision));
   return ($result !== FALSE ? $result : -1);
-<<<<<<< HEAD:versioncontrol_git.module
-}
-=======
 }*/
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 
 /**
  * Implementation of [versioncontrol_backend]_tag_operation():
@@ -1090,10 +948,7 @@ function _versioncontrol_git_get_item_revision_id($path, $revision) {
  * @ingroup Commit notification
  * @ingroup Database change notification
  */
-<<<<<<< HEAD:versioncontrol_git.module
-=======
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 function versioncontrol_git_tag_operation($op, $tag, $tagged_items) {
   switch ($op) {
     case 'insert':
@@ -1111,11 +966,7 @@ function versioncontrol_git_tag_operation($op, $tag, $tagged_items) {
       $tag['vc_op_id']);
     break;
   }
-<<<<<<< HEAD:versioncontrol_git.module
-}
-=======
 }*/
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 
 /**
  * Implementation of [versioncontrol_backend]_repository():
@@ -1154,20 +1005,13 @@ function versioncontrol_git_tag_operation($op, $tag, $tagged_items) {
  *        information. How this array looks like is defined by the
  *        corresponding backend module (versioncontrol_[xxx]).
  */
-<<<<<<< HEAD:versioncontrol_git.module
-=======
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 function versioncontrol_git_repository($op, $repository) {
   if ($op == 'update') {
     variable_set('versioncontrol_git_log_use_file', $repository['use_file']);
     unset($repository['use_file']);
   }
-<<<<<<< HEAD:versioncontrol_git.module
-}
-=======
 }*/
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 
 /**
  * Get the current revision (commit id) of file under version control,
@@ -1175,10 +1019,7 @@ function versioncontrol_git_repository($op, $repository) {
  * 
  * @return string Current revision (commit id).
  */
-<<<<<<< HEAD:versioncontrol_git.module
-=======
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 function versioncontrol_git_get_current_revision($repo_id, $path) {
   $result = db_fetch_object(db_query(
     "SELECT ir.action, c.revision
@@ -1196,21 +1037,14 @@ function versioncontrol_git_get_current_revision($repo_id, $path) {
     return $result->revision;
   }
   return NULL;
-<<<<<<< HEAD:versioncontrol_git.module
-}
-=======
 }*/
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 
 /**
  * Get the source items of the specified item revision.
  * 
  * @return array Source items.
  */
-<<<<<<< HEAD:versioncontrol_git.module
-=======
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 function versioncontrol_git_get_source_items($item_revision_id) {
   $result = db_query(
     "SELECT source_item_revision_id
@@ -1224,14 +1058,9 @@ function versioncontrol_git_get_source_items($item_revision_id) {
     $source_revisions[] = $source_revision->source_item_revision_id;
   }
   return $source_revisions;
-<<<<<<< HEAD:versioncontrol_git.module
-}
-
-=======
 }*/
 
 /*
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
 function versioncontrol_git_get_item_revision($item_revision_id) {
   return db_result(db_query(
     'SELECT revision
@@ -1241,8 +1070,7 @@ function versioncontrol_git_get_item_revision($item_revision_id) {
      WHERE ir.item_revision_id = %d',
      $item_revision_id
   ));
-}
-<<<<<<< HEAD:versioncontrol_git.module
+}*/
 
 /**
  * Implementation of [versioncontrol_backend]_format_revision_identifier():
@@ -1271,6 +1099,4 @@ function versioncontrol_git_format_revision_identifier($revision, $format = 'ful
       return $revision;
   }
 }
-=======
-*/
->>>>>>> cf6a2751d3b8a32b0e3b885c99827b22ec6f7abb:versioncontrol_git.module
+
