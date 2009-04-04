@@ -1,5 +1,5 @@
 <?php
-// $Id: versioncontrol_account_status.module,v 1.35 2009/02/27 22:24:12 jpetso Exp $
+// $Id: versioncontrol_account_status.module,v 1.36 2009/04/03 22:06:57 jpetso Exp $
 /**
  * @file
  * Version Control Account Status - Require users to submit a motivation text
@@ -168,7 +168,7 @@ function versioncontrol_account_status_set($status_data) {
  * @return
  *   TRUE if the account is authorized, or FALSE if it's not.
  */
-function versioncontrol_account_status_versioncontrol_is_account_authorized($uid, $repository) {
+function versioncontrol_account_status_versioncontrol_is_account_authorized($repository, $uid) {
   if ($repository['authorization_method'] != 'versioncontrol_account_status_repository') {
     return TRUE;
   }
