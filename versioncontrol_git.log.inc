@@ -42,8 +42,8 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   $op = array(
     'type' => VERSIONCONTROL_OPERATION_BRANCH,
     'repository' => $repository,
-    'date' => 0,//TODO: missing
-    'author' => '',//TODO: missing author
+    'date' => 0,//TODO: missing, no idea atm for this one
+    'author' => '',//TODO: missing author, see date
     'message' => NULL, //not supported by git, is it?
     'revision' => '', //there is non for git, or shall we take the latest commit form which we branched?
     'labels' => array(
@@ -100,17 +100,6 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   // Having retrieved the file revisions, insert those into the database
   // as Version Control API commits.
   _versioncontrol_git_log_process($repository, $file_revisions);
-
-  // Delete obsolete branches.
-  foreach ($obsolete_branches as $branch) {
-    $branch_id = versioncontrol_get_branch_id($branch, $repository['repo_id']);
-
-    if (!empty($branch_id)) {
-      db_query('DELETE FROM {versioncontrol_git_latest_commits} WHERE branch_id = %d', $branch_id);
-      db_query('DELETE FROM {versioncontrol_git_commits} WHERE branch_id = %d', $branch_id);
-      versioncontrol_delete_branch($repository['repo_id'], $branch);
-    }
-  }
 
   // Check tags.
   $tags = _versioncontrol_git_log_get_tags();
