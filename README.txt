@@ -30,5 +30,5 @@ Jimmy Berry ("boombatower", http://drupal.org/user/214218)
 CREDITS
 -------
 A good amount of code in Version Control / Project Node Integration was taken
-from the CVS bakend module on drupal.org, its author (Jakob Petsovits, among others)
+from the CVS backend module on drupal.org, its author (Jakob Petsovits, among others)
 deserve a lot of credits and may also hold copyright for parts of this module.
