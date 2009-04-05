@@ -421,11 +421,16 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range) {
     $op['date'] = trim($line);
     // Get revision message.
     $message = '';
+    $i = 0;
     while (($line = $next($logs)) !== FALSE) {
       if (trim($line) == 'ENDOFOUTPUTGITMESSAGEHERE') {
         break;
       }
+      if ($i == 1) {
+        $message .= "\n";
+      }
       $message .= trim($line) ."\n";
+      $i++;
     }
     $op['message'] = $message;
     $op_items = array();
