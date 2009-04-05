@@ -442,13 +442,13 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range) {
     // Get revision message.
     $next($logs); // Blank line.
     $message = '';
-    while (($line = $next($logs)) !== FALSE) {
-      if (trim($line) != '') {
+    while (!(is_numeric($line[0]) && preg_match('/^(\S+)'."\t".'(\S+)'."\t".'(.+)$/', $line, $matches)) && ($line = $next($logs)) !== FALSE) {
+     // if (trim($line) != '') {
         $message .= trim($line) ."\n";
-      }
-      else {
-        break;
-      }
+      //}
+      //else {
+        //break;
+      //}
     }
     $op['message'] = $message;
     $op_items = array();
