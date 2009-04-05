@@ -301,10 +301,10 @@ function _versioncontrol_git_log_process_tags($repository, $tags) {
 /**
  * Get all commits from Git using 'git log' command.
  */
-function _versioncontrol_git_log_get_commits($repository, $range, &$commits, &$commit_items) {
+function _versioncontrol_git_log_get_commits($repository, $range) {
   $command = "git log $range --numstat --summary --pretty=medium --reverse";
   $logs = _versioncontrol_git_log_exec($command, $temp_file);
-  _versioncontrol_git_log_parse($repository, $logs, $range, $commits, $commit_items); // Parse the info from the raw output.
+  _versioncontrol_git_log_parse($repository, $logs, $range); // Parse the info from the raw output.
 
   if (variable_get('versioncontrol_git_log_use_file', 1)) {
     fclose($logs);
