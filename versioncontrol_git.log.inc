@@ -39,33 +39,22 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   // Check for new branches.
   $new_branches = array_diff($branches, $existing_branches);
 
-  $op = array(
-    'type' => VERSIONCONTROL_OPERATION_BRANCH,
-    'repository' => $repository,
-    'date' => 0,//TODO: missing, no idea atm for this one
-    'author' => '',//TODO: missing author, see date
-    'message' => NULL, //not supported by git, is it?
-    'revision' => '', //there is non for git, or shall we take the latest commit form which we branched?
-    'labels' => array(
-      0 => array(
+  $label =array(
         'name' => '', //filled later
         'type' => VERSIONCONTROL_OPERATION_BRANCH,
         'action' => VERSIONCONTROL_ACTION_ADDED
-      )
-    )
   );
-  $op_items = array();
   //new branches
   foreach ($new_branches as $branch) {
-    $op['labels'][0]['name'] = $branch;
-    versioncontrol_insert_operation($op, $op_items);
+    $label['name'] = $branch;
+    versioncontrol_ensure_label($repository, $label);
   }
   //deleted branches
-  $op['labels'][0]['action'] = VERSIONCONTROL_ACTION_DELETED;
+  /*$op['labels'][0]['action'] = VERSIONCONTROL_ACTION_DELETED;
   foreach ($obsolete_branches as $branch) {
     $op['labels'][0]['name'] = $branch;
     versioncontrol_insert_operation($op, $op_items);
-  }
+  }*/
 
   // Record new commits.
   $constraints = array(
@@ -447,6 +436,7 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range, &$commits, &
       }
     }
     while (($line = $next($logs)) !== FALSE);
+    versioncontrol_fetch_source_items($repository, $op_items); //fill source_items
     // Get the branches affected by the commit
     $branches = _versioncontrol_git_log_get_branches_by_rev($revision);
     $label = array(
