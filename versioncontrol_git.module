@@ -103,6 +103,12 @@ function versioncontrol_git_menu() {
     'access arguments' => array('administer version control systems'),
     'type' => MENU_CALLBACK,
   );
+  $items['admin/project/versioncontrol-repositories/delete/git'] = array(
+    'title' => 'Truncate',
+    'page callback' => 'versioncontrol_git_truncate_repo',
+    'access arguments' => array('administer version control systems'),
+    'type' => MENU_CALLBACK,
+  );
 
   return $items;
 }
@@ -160,14 +166,10 @@ function versioncontrol_git_cron() {
  *   compared to and loaded from the database anymore.
  */
 function versioncontrol_git_get_selected_label_from_operation($operation, $target_item) {
-  // How CVS and many other version control systems will probably do it,
-  // as they have exactly one label assigned to each operation.
-  //TODO: implement versioncontrol_git_get_selected_label_from_operation
-  return array();
-
-  // If an operation - or more specifically, a commit - applies to multiple
-  // branches and/or tags (as can happen in SVN, for example), then the correct
-  // label for each item has to be determined.
+  //TODO: implement tag support here, tags>branch?
+  //just take the first branch, dunno what else we should do here...
+  //jpetso knows neither :P
+  return $operation['labels'][0];
 }
 
 
@@ -229,6 +231,7 @@ function versioncontrol_git_get_selected_label_from_operation($operation, $targe
  *   compared to and loaded from the database anymore.
  */
 function versioncontrol_git_get_selected_label_from_other_item($repository, $target_item, &$other_item, $other_item_tags = array()) {
+  drupal_set_message('API not implemented: versioncontrol_git_get_selected_label_from_other_item', 'warning');
   // First up, optimizations - maybe we can do without the generic
   // "label transfer" code from further down and use assumptions instead.
   return NULL;
@@ -773,6 +776,18 @@ function versioncontrol_git_update_repository_callback($repo_id) {
   else { // $repo_id is not a number or doesn't correlate to any repository.
     drupal_set_message(t('No such repository, did not fetch anything.'));
   }
+  drupal_goto('admin/project/versioncontrol-repositories');
+}
+
+function versioncontrol_git_truncate_repo()
+{
+  db_query("TRUNCATE {versioncontrol_item_revisions};");
+  db_query("TRUNCATE {versioncontrol_labels};");
+  db_query("TRUNCATE {versioncontrol_operations};");
+  db_query("TRUNCATE {versioncontrol_operation_items};");
+  db_query("TRUNCATE {versioncontrol_operation_labels};");
+  db_query("TRUNCATE {versioncontrol_source_items};");
+  drupal_set_message("truncated vcs-database");
   drupal_goto('admin/project/versioncontrol-repositories');
 }
 
