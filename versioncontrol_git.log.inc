@@ -302,7 +302,7 @@ function _versioncontrol_git_log_process_tags($repository, $tags) {
  * Get all commits from Git using 'git log' command.
  */
 function _versioncontrol_git_log_get_commits($repository, $range) {
-  $command = "git log $range --numstat --summary --pretty=medium --reverse";
+  $command = "git log $range --numstat --summary --pretty=medium --reverse --parents";
   $logs = _versioncontrol_git_log_exec($command, $temp_file);
   _versioncontrol_git_log_parse($repository, $logs, $range); // Parse the info from the raw output.
 
@@ -313,15 +313,10 @@ function _versioncontrol_git_log_get_commits($repository, $range) {
 
   
 }
-/**
- * 
- * @param $repository as we get it from the API
- * @param string $filename the revision of the current item we shall get it's source from
- * @return array source_items array
- */
-function _versioncontrol_git_get_source_item($repository, $filename) {
+
+function _versioncontrol_git_get_source_item_helper($repository, $revision, $filename) {
   $constraints = array(
-    'paths' => array($filename),
+    'revisions' => array($revision),
     'vcs' => array('git'),
     'repo_ids' => array($repository['repo_id']),
     'types' => array(VERSIONCONTROL_OPERATION_COMMIT)
@@ -338,13 +333,32 @@ function _versioncontrol_git_get_source_item($repository, $filename) {
   }
   $op_items = versioncontrol_get_operation_items($commit_op[$commit_key]);
   return array(
-    $filename => array(
-      'path' => $filename,
-      'type' => $op_items[$filename['type']],
-      'revision' => $commit_op[$commit_key]['revision'],
-      'action' => $op_items[$filename['action']]
-    )
+    'path' => $filename,
+    'type' => $op_items[$filename['type']],
+    'revision' => $revision,
+    'action' => $op_items[$filename['action']]
   );
+}
+
+/**
+ * 
+ * @param $repository as we get it from the API
+ * @param string $filename the revision of the current item we shall get it's source from
+ * @return array source_items array
+ */
+function _versioncontrol_git_get_source_item($repository, $filename, $parents) {
+  $return = array();
+  //var_export($parents);
+  $parents = array_shift($parents); //remove the current revision from the array
+  if (!is_array($parents) && is_string($parents)) {
+    $parents = array ($parents);
+  }
+  if (count($parents)) {
+    foreach ($parents as $rev) {
+      $return[] = _versioncontrol_git_get_source_item_helper($repository, $rev, $filename);
+    }
+  }
+  return $return;
 }
 /**
  * Parse the logs into a list of file revision objects, so that they
@@ -385,6 +399,7 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range) {
 
   $root_path = $repository['root'];
   while (($line = $next($logs)) !== FALSE) {
+    $merge = FALSE;
     $op = array(
       'type' => VERSIONCONTROL_OPERATION_COMMIT,
       'repository' => $repository,
@@ -399,10 +414,19 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range) {
     if (!$matches_found) {
       continue;
     }
-    $revision = $matches[1];
-    $op['revision'] = $revision;
+    $revision = explode(" ", $matches[1]);
+    //echo "revisions:\n";
+    //var_export($revision);
+    $op['revision'] = $revision[0];
     
     $line = $next($logs);
+    
+    //if we merged, ignore this line atm
+    if (preg_match('/^Merge: (.+)$/', $line, $matches)) {
+      $line = $next($logs);
+      $merge = TRUE;
+    }
+    
     //TODO: we want full acc names, or what do you think?
     if (preg_match('/^Author: ([^<]+)/', $line, $matches)) { // Ignore e-mail address.
       $author = trim($matches[1]);
@@ -438,8 +462,8 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range) {
           'type' => VERSIONCONTROL_ITEM_FILE,
           'path' => $path,
           'source_items' => array(),//filled later
-          'action' => VERSIONCONTROL_ACTION_MODIFIED,
-          'revision' => $revision
+          'action' => $merge ? VERSIONCONTROL_ACTION_MERGED : VERSIONCONTROL_ACTION_MODIFIED,
+          'revision' => $revision[0]
         );
       }
       else {
@@ -461,11 +485,11 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range) {
     
     foreach($op_items as $path => $item) {
       if($item['action'] != VERSIONCONTROL_ACTION_ADDED) {
-        $op_items[$path]['source_items'] = _versioncontrol_git_get_source_item($repository, $path); 
+        $op_items[$path]['source_items'] = _versioncontrol_git_get_source_item($repository, $path, $revision); 
       }
     }
     // Get the branches affected by the commit
-    $branches = _versioncontrol_git_log_get_branches_by_rev($revision);
+    $branches = _versioncontrol_git_log_get_branches_by_rev($revision[0]);
     $label = array(
       'name' => '', //filled later
       'type' => VERSIONCONTROL_OPERATION_BRANCH,
@@ -479,7 +503,7 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range) {
     //Delete all previous commits with this $rev, this is needed to avoid duplicates caused by adding a branch
     $constraints = array(
       'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
-      'revisions' => array($revision),
+      'revisions' => array($revision[0]),
       'vcs' => array('git'),
       'repo_ids' => array($repository['repo_id'])
     );
@@ -496,6 +520,7 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range) {
  * Get an already existing revision from the $file_revisions array with
  * the specified revision hash.
  */
+/*unused
 function _versioncontrol_git_log_get_duplicate_revision(&$file_revisions, $revision) {
   foreach ($file_revisions as $file_revision) {
     if ($file_revision->revision == $revision) {
@@ -504,7 +529,7 @@ function _versioncontrol_git_log_get_duplicate_revision(&$file_revisions, $revis
   }
   return NULL;
 }
-
+*/
 
 /**
  * Update the database by processing and inserting the previously retrieved
