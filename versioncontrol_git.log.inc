@@ -49,13 +49,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
     $label['name'] = $branch;
     versioncontrol_ensure_label($repository, $label);
   }
-  //deleted branches
-  /*$op['labels'][0]['action'] = VERSIONCONTROL_ACTION_DELETED;
-  foreach ($obsolete_branches as $branch) {
-    $op['labels'][0]['name'] = $branch;
-    versioncontrol_insert_operation($op, $op_items);
-  }*/
-
+  //jpetso and me (corni) came to the conclusion that we will not delete branches.
   // Record new commits.
   $constraints = array(
     'vcs' => array('git'),
