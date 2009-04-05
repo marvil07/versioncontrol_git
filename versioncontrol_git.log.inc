@@ -93,7 +93,6 @@ function _versioncontrol_git_log_update_repository(&$repository) {
     // Generate either '[branch]' or '[hash]..[branch]' as range specification for git log.
     $range = $latest_commit ? ($latest_commit .'..') : '';
     $range .= $branch;
-    //echo "range: $range\n";
 
     // Get commits from Git.
     _versioncontrol_git_log_get_commits($repository, $range, $commits, $commit_items);
