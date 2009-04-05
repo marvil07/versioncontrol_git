@@ -72,7 +72,6 @@ function _versioncontrol_git_log_update_repository(&$repository) {
     'vcs' => array('git'),
     'repo_ids' => array($repository['repo_id']),
     'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
-    'date_lower' => $repository['git_specific']['updated'],
     'branches' => array() // used in the loop
   );
   $options = array(
@@ -89,16 +88,6 @@ function _versioncontrol_git_log_update_repository(&$repository) {
     if (!empty($commit_op)) {
       foreach ($commit_op as $vc_op_id => $c_op) {
         $latest_commit = $c_op['revision'];
-      }
-    }
-    else
-    {
-      unset ($constraints['date_lower']);
-      $commit_op = $commit_op = versioncontrol_get_operations($constraints, $options);
-      if (!empty($commit_op)) {
-        foreach ($commit_op as $vc_op_id => $c_op) {
-          $latest_commit = $c_op['revision'];
-        }
       }
     }
     // Generate either '[branch]' or '[hash]..[branch]' as range specification for git log.
