@@ -83,6 +83,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   $commits = array();
   $commit_items = array();
   foreach ($branches as $branch) {
+    $constraints['branches'] = array($branch);
     $commit_op = versioncontrol_get_operations($constraints, $options);
     $latest_commit = FALSE;
     if (!empty($commit_op)) {
@@ -90,9 +91,20 @@ function _versioncontrol_git_log_update_repository(&$repository) {
         $latest_commit = $c_op['revision'];
       }
     }
+    else
+    {
+      unset ($constraints['date_lower']);
+      $commit_op = $commit_op = versioncontrol_get_operations($constraints, $options);
+      if (!empty($commit_op)) {
+        foreach ($commit_op as $vc_op_id => $c_op) {
+          $latest_commit = $c_op['revision'];
+        }
+      }
+    }
     // Generate either '[branch]' or '[hash]..[branch]' as range specification for git log.
     $range = $latest_commit ? ($latest_commit .'..') : '';
     $range .= $branch;
+    //echo "range: $range\n";
 
     // Get commits from Git.
     _versioncontrol_git_log_get_commits($repository, $range, $commits, $commit_items);
