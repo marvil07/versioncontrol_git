@@ -82,7 +82,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
     _versioncontrol_git_log_get_commits($repository, $range, $commits, $commit_items);
   }
   foreach ($commits as $revision => $op) {
-    versioncontrol_insert_operation($op, $commit_items[$revision]);
+    //versioncontrol_insert_operation($op, $commit_items[$revision]);
   }
   
   
@@ -307,7 +307,7 @@ function _versioncontrol_git_log_process_tags($repository, $tags) {
  * Get all commits from Git using 'git log' command.
  */
 function _versioncontrol_git_log_get_commits($repository, $range, &$commits, &$commit_items) {
-  $command = "git log $range --numstat --summary --pretty=medium";
+  $command = "git log $range --numstat --summary --pretty=medium --reverse";
   $logs = _versioncontrol_git_log_exec($command, $temp_file);
   _versioncontrol_git_log_parse($repository, $logs, $range, $commits, $commit_items); // Parse the info from the raw output.
 
@@ -318,7 +318,39 @@ function _versioncontrol_git_log_get_commits($repository, $range, &$commits, &$c
 
   
 }
-
+/**
+ * 
+ * @param $repository as we get it from the API
+ * @param string $filename the revision of the current item we shall get it's source from
+ * @return array source_items array
+ */
+function _versioncontrol_git_get_source_item($repository, $filename) {
+  $constraints = array(
+    'paths' => array($filename),
+    'vcs' => array('git'),
+    'repo_ids' => array($repository['repo_id']),
+    'types' => array(VERSIONCONTROL_OPERATION_COMMIT)
+  );
+  $options = array(
+    'query_type' => 'range',
+    'count' => 1,
+    'from' => 0
+  );
+  $commit_op = versioncontrol_get_operations($constraints, $options);
+  $commit_key = 0;
+  foreach ($commit_op as $key => $op) {
+    $commit_key = $key;
+  }
+  $op_items = versioncontrol_get_operation_items($commit_op[$commit_key]);
+  return array(
+    $filename => array(
+      'path' => $filename,
+      'type' => $op_items[$filename['type']],
+      'revision' => $commit_op[$commit_key]['revision'],
+      'action' => $op_items[$filename['action']]
+    )
+  );
+}
 /**
  * Parse the logs into a list of file revision objects, so that they
  * can be processed more easily.
@@ -410,7 +442,7 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range, &$commits, &
         $op_items[$path] = array(
           'type' => VERSIONCONTROL_ITEM_FILE,
           'path' => $path,
-          'source_items' => array(),//TODO find out what they're for
+          'source_items' => array(),//filled later
           'action' => VERSIONCONTROL_ACTION_MODIFIED,
           'revision' => $revision
         );
@@ -431,7 +463,12 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range, &$commits, &
       }
     }
     while (($line = $next($logs)) !== FALSE);
-    versioncontrol_fetch_source_items($repository, $op_items); //fill source_items
+    
+    foreach($op_items as $path => $item) {
+      if($item['action'] != VERSIONCONTROL_ACTION_ADDED) {
+        $op_items[$path]['source_items'] = _versioncontrol_git_get_source_item($repository, $path); 
+      }
+    }
     // Get the branches affected by the commit
     $branches = _versioncontrol_git_log_get_branches_by_rev($revision);
     $label = array(
@@ -445,6 +482,7 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range, &$commits, &
     }
     $commits[$revision] = $op;
     $commit_items[$revision] = $op_items;
+    versioncontrol_insert_operation($op, $op_items);
   } // Loop to the next revision.
 }
 
