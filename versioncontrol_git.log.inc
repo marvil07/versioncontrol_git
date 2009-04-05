@@ -353,10 +353,8 @@ function _versioncontrol_git_get_source_item($repository, $filename, $parents) {
   if (!is_array($parents) && is_string($parents)) {
     $parents = array ($parents);
   }
-  if (count($parents)) {
-    foreach ($parents as $rev) {
-      $return[] = _versioncontrol_git_get_source_item_helper($repository, $rev, $filename);
-    }
+  foreach ($parents as $rev) {
+    $return[] = _versioncontrol_git_get_source_item_helper($repository, $rev, $filename);
   }
   return $return;
 }
