@@ -18,6 +18,8 @@
  *   failed for whatever reason.
  */
 function _versioncontrol_git_log_update_repository(&$repository) {
+    variable_set('versioncontrol_git_log_use_file', 0);
+  
   $root = escapeshellcmd($repository['root']);
   chdir($root); // Set working directory to root.
   $branches = _versioncontrol_git_log_get_branches(); // Get the list of current branches from Git.
@@ -125,15 +127,16 @@ function _versioncontrol_git_get_lasest_commits($repository) {
  */
 function _versioncontrol_git_log_exec($command, &$temp_file) {
   watchdog('special', $command);
-  if (variable_get('versioncontrol_git_log_use_file', 1)) {
+  /*if (variable_get('versioncontrol_git_log_use_file', 1)) {
     $temp_dir = variable_get('file_directory_temp', (PHP_OS == 'WINNT' ? 'c:\\windows\\temp' : '/tmp'));
     $temp_file = $temp_dir .'/git-'. rand();
     exec("$command > $temp_file");
     $logs = fopen($temp_file, 'r');
   }
-  else {
+  else*/ {
     $logs = array();
     exec($command, $logs);
+    array_unshift($logs,'');
     reset($logs); // Reset the array pointer, so that we can use next().
   }
   return $logs;
@@ -162,7 +165,6 @@ function _versioncontrol_git_log_parse_branches(&$logs) {
   // got an array and navigate it via next(). If we stored the log in a
   // temporary file, $logs is a file handle that we need to fgets() instead.
   $next = is_array($logs) ? 'next' : 'fgets';
-
   $branches = array();
   while (($line = $next($logs)) !== FALSE) {
     if (preg_match('/([^\s]+)$/', $line, $matches)) { // Remove whitespace and ensure that the active module symbol '*' doesn't get included.
@@ -173,17 +175,17 @@ function _versioncontrol_git_log_parse_branches(&$logs) {
 }
 
 /**
- * Get branches by revision from Git using 'branch --contains' command.
+ * Get branches by revision from Git using 'git branch --contains' command.
  * 
  * @return array List of branches.
  */
 function _versioncontrol_git_log_get_branches_by_rev($revision) {
   $logs = _versioncontrol_git_log_exec("git branch --contains $revision", $temp_file); // Query branches.
   $branches = _versioncontrol_git_log_parse_branches($logs); // Parse output.
-  if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
+  /*if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
     fclose($logs);
     unlink($temp_file);
-  }
+  }*/
   return $branches;
 }
 
@@ -302,7 +304,7 @@ function _versioncontrol_git_log_process_tags($repository, $tags) {
  * Get all commits from Git using 'git log' command.
  */
 function _versioncontrol_git_log_get_commits($repository, $range) {
-  $command = "git log $range --numstat --summary --pretty=medium --reverse --parents";
+  $command = "git log $range --numstat --summary --pretty=format:\"%H%n%P%n%aN <%ae>%n%at%n%s%n%bENDOFOUTPUTGITMESSAGEHERE\" --reverse";
   $logs = _versioncontrol_git_log_exec($command, $temp_file);
   _versioncontrol_git_log_parse($repository, $logs, $range); // Parse the info from the raw output.
 
@@ -332,11 +334,13 @@ function _versioncontrol_git_get_source_item_helper($repository, $revision, $fil
     $commit_key = $key;
   }
   $op_items = versioncontrol_get_operation_items($commit_op[$commit_key]);
+  $type = $op_items[$filename]['type'] ? $op_items[$filename]['type'] : VERSIONCONTROL_ITEM_FILE;
+  $action = $op_items[$filename]['action'] ? $op_items[$filename]['action'] : VERSIONCONTROL_ACTION_ADDED;
   return array(
     'path' => $filename,
-    'type' => $op_items[$filename['type']],
+    'type' => $type,
     'revision' => $revision,
-    'action' => $op_items[$filename['action']]
+    'action' => $action
   );
 }
 
@@ -349,10 +353,6 @@ function _versioncontrol_git_get_source_item_helper($repository, $revision, $fil
 function _versioncontrol_git_get_source_item($repository, $filename, $parents) {
   $return = array();
   //var_export($parents);
-  $parents = array_shift($parents); //remove the current revision from the array
-  if (!is_array($parents) && is_string($parents)) {
-    $parents = array ($parents);
-  }
   foreach ($parents as $rev) {
     $return[] = _versioncontrol_git_get_source_item_helper($repository, $rev, $filename);
   }
@@ -408,60 +408,37 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range) {
       'labels' => array()
     );
     // Revision info.
-    $matches_found = preg_match('/^commit (.+)$/', $line, $matches);
-    if (!$matches_found) {
-      continue;
-    }
-    $revision = explode(" ", $matches[1]);
-    //echo "revisions:\n";
-    //var_export($revision);
-    $op['revision'] = $revision[0];
-    
+    $revision = $line;
+    $op['revision'] = trim($revision);
     $line = $next($logs);
-    
-    //if we merged, ignore this line atm
-    if (preg_match('/^Merge: (.+)$/', $line, $matches)) {
-      $line = $next($logs);
+    $parents = explode(" ", trim($line));
+    if(count($parents)>1) {
       $merge = TRUE;
     }
-    
-    //TODO: we want full acc names, or what do you think?
-    if (preg_match('/^Author: ([^<]+)/', $line, $matches)) { // Ignore e-mail address.
-      $author = trim($matches[1]);
-      $op['author'] = $author;
-    }
-    
-
     $line = $next($logs);
-    
-    if (preg_match('/^Date: (.+)$/', $line, $matches)) {
-      $date = trim($matches[1]);
-      $op['date'] = strtotime($date);
-    }
-    
+    $op['author'] = trim($line);
+    $line = $next($logs);
+    $op['date'] = trim($line);
     // Get revision message.
-    $next($logs); // Blank line.
     $message = '';
-    while (!(is_numeric($line[0]) && preg_match('/^(\S+)'."\t".'(\S+)'."\t".'(.+)$/', $line, $matches)) && ($line = $next($logs)) !== FALSE) {
-     // if (trim($line) != '') {
-        $message .= trim($line) ."\n";
-      //}
-      //else {
-        //break;
-      //}
+    while (($line = $next($logs)) !== FALSE) {
+      if (trim($line) == 'ENDOFOUTPUTGITMESSAGEHERE') {
+        break;
+      }
+      $message .= trim($line) ."\n";
     }
     $op['message'] = $message;
     $op_items = array();
     // Read file line revisions.
     while (($line = $next($logs)) !== FALSE) {
-      if (is_numeric($line[0]) && preg_match('/^(\S+)'."\t".'(\S+)'."\t".'(.+)$/', $line, $matches)) { // Begins with num lines added and matches expression.
+      if (preg_match('/^(\S+)'."\t".'(\S+)'."\t".'(.+)$/', $line, $matches)) { // Begins with num lines added and matches expression.
         $path = '/' . $matches[3];
         $op_items[$path] = array(
           'type' => VERSIONCONTROL_ITEM_FILE,
           'path' => $path,
           'source_items' => array(),//filled later
           'action' => $merge ? VERSIONCONTROL_ACTION_MERGED : VERSIONCONTROL_ACTION_MODIFIED,
-          'revision' => $revision[0]
+          'revision' => $revision
         );
       }
       else {
@@ -483,11 +460,11 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range) {
     
     foreach($op_items as $path => $item) {
       if($item['action'] != VERSIONCONTROL_ACTION_ADDED) {
-        $op_items[$path]['source_items'] = _versioncontrol_git_get_source_item($repository, $path, $revision); 
+        $op_items[$path]['source_items'] = _versioncontrol_git_get_source_item($repository, $path, $parents); 
       }
     }
     // Get the branches affected by the commit
-    $branches = _versioncontrol_git_log_get_branches_by_rev($revision[0]);
+    $branches = _versioncontrol_git_log_get_branches_by_rev($revision);
     $label = array(
       'name' => '', //filled later
       'type' => VERSIONCONTROL_OPERATION_BRANCH,
@@ -501,7 +478,7 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range) {
     //Delete all previous commits with this $rev, this is needed to avoid duplicates caused by adding a branch
     $constraints = array(
       'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
-      'revisions' => array($revision[0]),
+      'revisions' => array($revision),
       'vcs' => array('git'),
       'repo_ids' => array($repository['repo_id'])
     );
