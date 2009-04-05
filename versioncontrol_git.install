@@ -6,6 +6,7 @@
  * account management as a pluggable backend.
  *
  * Copyright 2008 by Jimmy Berry ("boombatower", http://drupal.org/user/214218)
+ * Copyright 2009 by Cornelius Riemenschneider ("CorniI", http://drupal.org/user/136353)
  */
 
 /**
