@@ -1,0 +1,6 @@
+by corni:
+because there are some bugs in the versioncontrol API, please use it's latest cvs, this fixes some bugs.
+
+
+
+
