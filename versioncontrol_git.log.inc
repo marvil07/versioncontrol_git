@@ -461,17 +461,18 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range) {
     do {
       if (preg_match('/^ (\S+) (\S+) (\S+) (.+)$/', $line, $matches)) { // Ensure that same file, they should be in same order.
         $read = TRUE;
-        //echo "matched: $line with $matches[4]\n";
         $op_items['/' . $matches[4]]['action'] = ($matches[1] == 'create' ? VERSIONCONTROL_ACTION_ADDED : VERSIONCONTROL_ACTION_DELETED);
       }
       else {
-        if ($read)
-          $line = $next($logs);
         break;
       }
     }
     while (($line = $next($logs)) !== FALSE);
     
+    if ($read) {
+      $line = $next($logs);
+    }
+
     foreach($op_items as $path => $item) {
       if($item['action'] != VERSIONCONTROL_ACTION_ADDED) {
         $op_items[$path]['source_items'] = _versioncontrol_git_get_source_item($repository, $path, $parents); 
@@ -502,9 +503,6 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range) {
       versioncontrol_delete_operation($commit);
     }
     versioncontrol_insert_operation($op, $op_items);
-    if ($revision == 'f91942af35de7ac3355802db60cc39ddc3c6ecf3') {
-      //var_export($logs);
-    }
   } // Loop to the next revision.
 }
 
