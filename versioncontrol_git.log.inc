@@ -318,10 +318,11 @@ function _versioncontrol_git_log_get_commits($repository, $range) {
 
 function _versioncontrol_git_get_source_item_helper($repository, $revision, $filename) {
   $constraints = array(
-    'revisions' => array($revision),
+    //'revisions' => array($revision),
     'vcs' => array('git'),
     'repo_ids' => array($repository['repo_id']),
-    'types' => array(VERSIONCONTROL_OPERATION_COMMIT)
+    'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
+    'paths' => array($filename)
   );
   $options = array(
     'query_type' => 'range',
@@ -339,7 +340,7 @@ function _versioncontrol_git_get_source_item_helper($repository, $revision, $fil
   return array(
     'path' => $filename,
     'type' => $type,
-    'revision' => $revision,
+    'revision' => $op_items[$filename]['revision'],
     'action' => $action
   );
 }
