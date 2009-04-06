@@ -394,9 +394,10 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range) {
   // got an array and navigate it via next(). If we stored the log in a
   // temporary file, $logs is a file handle that we need to fgets() instead.
   $next = is_array($logs) ? 'next' : 'fgets';
-
   $root_path = $repository['root'];
-  while (($line = $next($logs)) !== FALSE) {
+  $line = TRUE;
+  $line = $next($logs); // Get Revision
+  while ($line !== FALSE) {
     $merge = FALSE;
     $op = array(
       'type' => VERSIONCONTROL_OPERATION_COMMIT,
@@ -407,17 +408,20 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range) {
       'revision' => '', //filled later
       'labels' => array()
     );
-    // Revision info.
-    $revision = $line;
-    $op['revision'] = trim($revision);
-    $line = $next($logs);
+    // $line already points to the revision
+    $revision = trim($line);
+    $op['revision'] = $revision;
+    $line = $next($logs); // Get $parents
     $parents = explode(" ", trim($line));
-    if(count($parents)>1) {
+    if ($parents[0] == '') {
+      $parents = array();
+    }
+    if(isset($parents[1])) {
       $merge = TRUE;
     }
-    $line = $next($logs);
+    $line = $next($logs); // Get Author
     $op['author'] = trim($line);
-    $line = $next($logs);
+    $line = $next($logs); // Get Date as Timestamp
     $op['date'] = trim($line);
     // Get revision message.
     $message = '';
@@ -434,9 +438,12 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range) {
     }
     $op['message'] = $message;
     $op_items = array();
+    $read = FALSE;
+    $line = $next($logs); // Points to either the next entry or the first items modified or to the file actions
     // Read file line revisions.
-    while (($line = $next($logs)) !== FALSE) {
+    do {
       if (preg_match('/^(\S+)'."\t".'(\S+)'."\t".'(.+)$/', $line, $matches)) { // Begins with num lines added and matches expression.
+        $read = TRUE;
         $path = '/' . $matches[3];
         $op_items[$path] = array(
           'type' => VERSIONCONTROL_ITEM_FILE,
@@ -449,15 +456,17 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range) {
       else {
         break;
       }
-    }
-    
+    } while (($line = $next($logs)) !== FALSE);
     // Read file actions.
     do {
       if (preg_match('/^ (\S+) (\S+) (\S+) (.+)$/', $line, $matches)) { // Ensure that same file, they should be in same order.
+        $read = TRUE;
         //echo "matched: $line with $matches[4]\n";
         $op_items['/' . $matches[4]]['action'] = ($matches[1] == 'create' ? VERSIONCONTROL_ACTION_ADDED : VERSIONCONTROL_ACTION_DELETED);
       }
       else {
+        if ($read)
+          $line = $next($logs);
         break;
       }
     }
@@ -493,6 +502,9 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range) {
       versioncontrol_delete_operation($commit);
     }
     versioncontrol_insert_operation($op, $op_items);
+    if ($revision == 'f91942af35de7ac3355802db60cc39ddc3c6ecf3') {
+      //var_export($logs);
+    }
   } // Loop to the next revision.
 }
 
