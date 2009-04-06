@@ -10,6 +10,78 @@
  */
 
 /**
+ * 
+ */
+function _versioncontrol_git_log_parse_tag_info($repository, $tag_name, $logs) {
+  $matches = array();
+  $next = is_array($logs) ? 'next' : 'fgets';
+  $line = next($logs); // Get the first line, we don't need it :P
+  $line = next($logs); // Get the tagger
+  preg_match('/^Tagger: (.+)$/', $line, $matches);
+  $tagger = trim($matches[1]);
+  $line = next($logs); // Get date
+  preg_match('/^Date: (.+)$/', $line, $matches);
+  $date = strtotime($matches[1]);
+  $line = next($logs); // Empty line
+  // Get the tag message
+  $message = '';
+  $i = 0;
+  while (($line = $next($logs)) !== FALSE) {
+    if (trim($line) == 'ENDOFGITTAGOUTPUTMESAGEHERE') {
+      break;
+    }
+    if ($i == 1) {
+      $message .= "\n";
+    }
+    $message .= trim($line) ."\n";
+    $i++;
+  }
+  $line = next($logs); // Get the tagged commit
+  $tagged_commit = trim($line);
+  // By now, we're done with the parsing, construct the op array
+  return array (
+    'type' => VERSIONCONTROL_OPERATION_TAG,
+    'repository' => $repository,
+    'date' => $date,
+    'username' => $tagger,
+    'message' => $message,
+    'revision' => $tagged_commit,
+    'labels' => array(
+      0 => array(
+        'name' => $tag_name,
+        'type' => VERSIONCONTROL_OPERATION_TAG,
+        'action' => VERSIONCONTROL_ACTION_ADDED
+      )
+    )
+  );
+
+}
+
+/**
+ * 
+ */
+function _versioncontrol_git_get_tag_operation($repository, $tag) {
+  $logs = _versioncontrol_git_log_exec("git show blatag --pretty=format:\"ENDOFGITTAGOUTPUTMESAGEHERE%n%H\" --", $temp_file); // Query tags.
+  $tag_op = _versioncontrol_git_log_parse_tag_info($repository, $tag, $logs); // Parse output.
+  if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
+    fclose($logs);
+    unlink($temp_file);
+  }
+  return $tag_op;
+}
+
+/**
+ *
+ */
+function _versioncontrol_git_process_tags($repository, $new_tags) {
+  foreach ($new_tags as $tag) {
+    $tag_op = _versioncontrol_git_get_tag_operation($repository, $tag);
+    $op_items = array();
+    versioncontrol_insert_operation($tag_op, $op_items);
+  }
+}
+
+/**
  * Actually update the repository by fetching commits and other stuff
  * directly from the repository, invoking the git executable.
  *
@@ -22,14 +94,14 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   
   $root = escapeshellcmd($repository['root']);
   chdir($root); // Set working directory to root.
+  
   $branches = _versioncontrol_git_log_get_branches(); // Get the list of current branches from Git.
   $constraints = array(
     'vcs' => array('git'),
     'repo_ids' => array($repository['repo_id']),
     'types' => array(VERSIONCONTROL_OPERATION_BRANCH)
   );
-  $options = array();
-  $existing_branch_ops = versioncontrol_get_operations($constraints, $options);
+  $existing_branch_ops = versioncontrol_get_operations($constraints);
   $existing_branches = array();
   foreach($existing_branch_ops as $branch_op) {
     if(!in_array($branch_op['labels'][0]['name'], $existing_branches)) {
@@ -38,7 +110,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   }
   
   // Check for any branches that are no longer part of the repository.
-  $obsolete_branches = array_diff($existing_branches, $branches);
+  //$obsolete_branches = array_diff($existing_branches, $branches);
   // Check for new branches.
   $new_branches = array_diff($branches, $existing_branches);
 
@@ -82,13 +154,25 @@ function _versioncontrol_git_log_update_repository(&$repository) {
     _versioncontrol_git_log_get_commits($repository, $range);
   }
   
-  
-/*
   // Check tags.
-  $tags = _versioncontrol_git_log_get_tags();
-  //TODO: update
-  _versioncontrol_git_log_process_tags($repository, $tags);
-*/
+  $tags = _versioncontrol_git_log_get_tags(); //Now we have the current list of tags as array of strings.
+  $constraints = array(
+    'vcs' => array('git'),
+    'repo_ids' => array($repository['repo_id']),
+    'types' => array(VERSIONCONTROL_OPERATION_TAG)
+  );
+  $existing_tag_ops = versioncontrol_get_operations($constraints);
+  $existing_tags = array();
+  foreach($existing_tag_ops as $tag_op) {
+    if(!in_array($tag_op['labels'][0]['name'], $existing_tags)) {
+      $existing_tags[] = $tag_op['labels'][0]['name'];
+    }
+  }
+  // Deleting tags is *not* supported. Read the manual if you want to know why...
+  // Check for new tags.
+  $new_tags = array_diff($tags, $existing_tags);
+  _versioncontrol_git_process_tags($repository, $new_tags);
+
   // Update repository updated field. Displayed on administration interface for documentation purposes.
   $repository['git_specific']['updated'] = time();
   db_query('UPDATE {versioncontrol_git_repositories}
@@ -214,91 +298,11 @@ function _versioncontrol_git_log_parse_tags(&$logs) {
   $tags = array();
   while (($line = $next($logs)) !== FALSE) { // TODO Possible parse message associated with tag.
     if (preg_match('/([^\s]+)$/', $line, $matches)) { // Remove whitespace.
-      $tag = new StdClass();
-      $tag->name = $matches[1];
-
-      // Query most recent commit in tag.
-      $temp_file = '';
-      $logs2 = _versioncontrol_git_log_exec('git log '. $tag->name .' -n 1', $temp_file);
-
-      if (preg_match('/^commit (.+)$/', $next($logs2), $matches)) {
-        $tag->revision = $matches[1];
-      }
-
-      if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
-        fclose($logs2);
-        unlink($temp_file);
-      }
-
-      $tags[] = $tag;
+      $tags[] = $matches[1];
     }
   }
   return $tags;
 }
-
-/**
- * Update the database by processing and inserting the previously retrieved tags.
- *
- * @param array $repository The repository array, as given by the Version Control API.
- * @param array $tags List of tags to process.
- */
-/*
-function _versioncontrol_git_log_process_tags($repository, $tags) {
-  $tag_actions = array();
-
-  foreach ($tags as $tag) {
-    // Don't insert the same tag twice.
-    $count = db_result(db_query(
-      "SELECT COUNT(*)
-       FROM {versioncontrol_git_tag_operations} gtag_op
-        INNER JOIN {versioncontrol_operations} op
-         ON gtag_op.vc_op_id = op.vc_op_id
-        INNER JOIN {versioncontrol_tag_operations} tag_op
-         ON gtag_op.vc_op_id = tag_op.vc_op_id
-       WHERE op.repo_id = %d AND op.type = %d
-        AND gtag_op.revision = '%s'",
-      $repository['repo_id'], VERSIONCONTROL_OPERATION_TAG,
-      $tag->revision
-    ));
-    if ($count > 0) {
-      continue;
-    }
-
-    $tag_action = array(
-      'tag_name' => $tag->name,
-      'action' => VERSIONCONTROL_ACTION_ADDED,
-      'date' => time(), // TODO Find out if date can be retrived.
-      'username' => 'anonymous', // TODO Find out if username can be retrived.
-      'repo_id' => $repository['repo_id'],
-      'message' => '', // TODO Find out if message can be retrived.
-      'git_specific' => array(
-        'revision' => $tag->revision,
-      )
-    );
-    $tagged_items = array();
-
-    $tag_actions[$tag_action['date']][] = array($tag_action, $tagged_items);
-  }
-
-  ksort($tag_actions);
-  foreach ($tag_actions as $date => $date_tag_actions) {
-    foreach ($date_tag_actions as $tag_actions_info) {
-      $tag_operation = array(
-        'type' => VERSIONCONTROL_OPERATION_TAG,
-        'repository' => $repository,
-        'date' => $date,
-        'username' => $tag_actions_info[0]['username'],
-        'message' => $tag_actions_info[0]['message'],
-        'revision' => $tag_actions_info[0]['git_specific']['revision'],
-        'labels' => array(),
-      );
-      versioncontrol_insert_operation($tag_operation, $tag_actions_info);
-
-      //versioncontrol_insert_tag_operation($tag_actions_info[0], $tag_actions_info[1]);
-    }
-  }
-}
-*/
 
 /**
  * Get all commits from Git using 'git log' command.
