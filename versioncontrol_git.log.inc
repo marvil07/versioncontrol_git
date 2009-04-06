@@ -12,7 +12,7 @@
 /**
  * 
  */
-function _versioncontrol_git_log_parse_tag_info($repository, $tag_name, $logs) {
+function _versioncontrol_git_log_parse_tag_info($repository, $tag_name, &$logs) {
   $matches = array();
   $next = is_array($logs) ? 'next' : 'fgets';
   $line = next($logs); // Get the first line, we don't need it :P
@@ -61,7 +61,7 @@ function _versioncontrol_git_log_parse_tag_info($repository, $tag_name, $logs) {
  * 
  */
 function _versioncontrol_git_get_tag_operation($repository, $tag) {
-  $logs = _versioncontrol_git_log_exec("git show blatag --pretty=format:\"ENDOFGITTAGOUTPUTMESAGEHERE%n%H\" --", $temp_file); // Query tags.
+  $logs = _versioncontrol_git_log_exec("git show $tag --pretty=format:\"ENDOFGITTAGOUTPUTMESAGEHERE%n%H\" --", $temp_file); // Query tags.
   $tag_op = _versioncontrol_git_log_parse_tag_info($repository, $tag, $logs); // Parse output.
   if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
     fclose($logs);
