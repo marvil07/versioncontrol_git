@@ -173,6 +173,31 @@ function versioncontrol_git_get_selected_label_from_operation($operation, $targe
   return $operation['labels'][0];
 }
 
+function _versioncontrol_git_get_branch_intersect($repository, $item1, $item2) {
+  $constraints = array(
+    'revisions' => array($item1['revision'], $item2['revision']),
+    'vcs' => array('git'),
+    'repo_ids' => array($repository['repo_id']),
+    'types' => array(VERSIONCONTROL_OPERATION_COMMIT)
+  );
+  $commit_ops = versioncontrol_get_operations($constraints);
+  $branches1 = array();
+  $branches2 = array();
+  foreach ($commit_ops as $vc_op_id => $op) {
+    foreach ($op['labels'] as $label) {
+      if ($label['type'] === VERSIONCONTROL_OPERATION_BRANCH) {
+        if ($op['revision'] == $item1['revision']) {
+          $branches1[]=$label;
+        }
+        else if ($op['revision'] == $item2['revision']) {
+          $branches2[]=$label;
+        }
+      }
+    }
+  }
+  $branches = array_intersect($branches1, $branches2);
+  return array_pop($branches); // We don't know any keys in $branches, so we use array_pop here. Also it'll return NULL if needed
+}
 
 /**
  * Implementation of [versioncontrol_backend]_get_selected_label_from_other_item():
@@ -232,11 +257,8 @@ function versioncontrol_git_get_selected_label_from_operation($operation, $targe
  *   compared to and loaded from the database anymore.
  */
 function versioncontrol_git_get_selected_label_from_other_item($repository, $target_item, &$other_item, $other_item_tags = array()) {
-  drupal_set_message('API not implemented: versioncontrol_git_get_selected_label_from_other_item', 'warning');
   // First up, optimizations - maybe we can do without the generic
   // "label transfer" code from further down and use assumptions instead.
-  return NULL;
-  //TODO: implement
   // Let's assume for FakeVCS repositories that if an item wears a label, then
   // an item at another path but with the same (file-level) revision can also
   // wear that same label. That is the case with some version control systems
@@ -246,22 +268,33 @@ function versioncontrol_git_get_selected_label_from_other_item($repository, $tar
   if ($item['revision'] == $other_item['revision']) {
     return versioncontrol_get_item_selected_label($repository, $other_item);
   }
-
+  
+  //can be maybe optimized for speed by using the hints provided
+  return _versioncontrol_git_get_branch_intersect($repository, $target_item, $other_item);
   // If the $other_item is a successor item on a branch, some version control
   // systems (like CVS) can guarantee that the $target_item, the predecessor,
   // is always on the same branch. So no need for database queries, yay.
-  if (in_array('successor_item', $other_item_tags)) {
+  /*if (in_array('successor_item', $other_item_tags)) {
     $label = versioncontrol_get_item_selected_label($repository, $other_item);
 
     if (isset($label['type']) && $label['type'] == VERSIONCONTROL_OPERATION_BRANCH) {
       return $label;
     }
   }
+  if (in_array('source_item', $other_item_tags)) {
+    $label = versioncontrol_get_item_selected_label($repository, $other_item);
 
+    if (isset($label['type']) && $label['type'] == VERSIONCONTROL_OPERATION_BRANCH) {
+      return $label;
+    }
+  }
+  drupal_set_message('API not implemented: versioncontrol_git_get_selected_label_from_other_item', 'warning');
+  */
+  //return NULL;
   // Otherwise we might not be able to derive the $target_item's label,
   // in which case we need to fall back to the database or a VCS invocation.
   // For example, something like this.
-  if (versioncontrol_fetch_item_revision_id($repository, $target_item)) {
+  /*if (versioncontrol_fetch_item_revision_id($repository, $target_item)) {
     $constraints = array(
       'item_revision_id' => array($target_item['item_revision_id']),
     );
@@ -273,7 +306,7 @@ function versioncontrol_git_get_selected_label_from_other_item($repository, $tar
       $commit_operation = reset($commit_operations); // first (only) element
       return $commit_operation['labels'][0];
     }
-  }
+  }*/
 
   // (You can even do more attempts if you want to, like trying to ask
   // the VCS itself. Or maybe not, depends on your motivation and the

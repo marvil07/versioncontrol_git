@@ -353,7 +353,6 @@ function _versioncontrol_git_get_source_item_helper($repository, $revision, $fil
  */
 function _versioncontrol_git_get_source_item($repository, $filename, $parents) {
   $return = array();
-  //var_export($parents);
   foreach ($parents as $rev) {
     $return[] = _versioncontrol_git_get_source_item_helper($repository, $rev, $filename);
   }
