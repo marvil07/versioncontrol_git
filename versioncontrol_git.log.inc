@@ -459,12 +459,14 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, $branches_pe
     foreach ($same_rev_commit as $vc_op_id => $rev_commit) {
       $adjusted_commit = TRUE;
       // We already have a commit with this revision recorded, so use a faster parser then.
+      // jpetso, I'd need an API call here which just updates versioncontrol_label_operations!
+      // that's pretty important for speed, we're already slow enough :(
       $rev_commit_items = versioncontrol_get_operation_items($rev_commit, TRUE);
       versioncontrol_delete_operation($rev_commit);
       // Use the updated labels array
       $rev_commit['labels'] = $branches_per_commit[$revision];
       versioncontrol_insert_operation($rev_commit, $rev_commit_items);
-      // We'll deal with branches somewhere else in a more efficient way :)
+
       $line = $next($logs); // Get $parents
       $line = $next($logs); // Get Author
       $line = $next($logs); // Get Date as Timestamp
