@@ -677,3 +677,28 @@ function versioncontrol_git_format_revision_identifier($revision, $format = 'ful
   }
 }
 
+/**
+ * Returns an array of all labels in a repository, and if $type is given, filters by TAG or BRANCH.
+ *
+ * @param $repository As given by the API
+ * @param $type Set the filter type, possibel values are VERSIONCONTROL_OPERATION_{TAG,BRANCH}
+ * @return array An array of strings with the label names.
+ */
+function versioncontrol_get_label_list($repository, $type = FALSE)
+{
+  $query = "SELECT label_id, repo_id, name, type FROM {versioncontrol_labels}
+      WHERE repo_id = %d";
+  if ($type !== FALSE) {
+     $query .= " AND type = %d";
+     $result = db_query($query, $repository['repo_id'], $type);
+  }
+  else
+  {
+    $result = db_query($query, $repository['repo_id']);
+  }
+  $labels = array();
+  while ($row = db_fetch_object($result)) {
+    $labels[] = $row->name;
+  }
+  return $labels;
+}
