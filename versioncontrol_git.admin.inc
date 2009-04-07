@@ -109,8 +109,5 @@ function versioncontrol_git_versioncontrol_alter_repository_list($vcs, $reposito
     $rows_by_repo_id[$repo_id][] = $repositories[$repo_id]['git_specific']['updated']
       ? format_date($repositories[$repo_id]['git_specific']['updated'], 'small')
       : t('never');
-    $rows_by_repo_id[$repo_id][] = t('(!db)', array(
-        '!db' => l(t('Truncate db'), 'admin/project/versioncontrol-repositories/delete/git')
-      ));
   }
 }

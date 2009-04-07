@@ -104,13 +104,6 @@ function versioncontrol_git_menu() {
     'access arguments' => array('administer version control systems'),
     'type' => MENU_CALLBACK,
   );
-  $items['admin/project/versioncontrol-repositories/delete/git'] = array(
-    'title' => 'Truncate',
-    'page callback' => 'versioncontrol_git_truncate_repo',
-    'access arguments' => array('administer version control systems'),
-    'type' => MENU_CALLBACK,
-  );
-
   return $items;
 }
 
