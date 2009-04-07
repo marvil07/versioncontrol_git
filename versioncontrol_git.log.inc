@@ -82,6 +82,22 @@ function _versioncontrol_git_process_tags($repository, $new_tags) {
 }
 
 /**
+ * 
+ */
+function _versioncontrol_git_log_get_commits_in_branch($repository, $range) {
+  $logs = _versioncontrol_git_log_exec("git rev-list $range", $temp_file); // Query tags.
+  $next = is_array($logs) ? 'next' : 'fgets';
+  $commits = array();
+  while (($line = $next($logs)) !== FALSE) {
+    $commits[] = trim($line);
+  }
+  if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
+    fclose($logs);
+    unlink($temp_file);
+  }
+  return $commits;
+}
+/**
  * Actually update the repository by fetching commits and other stuff
  * directly from the repository, invoking the git executable.
  *
@@ -137,6 +153,8 @@ function _versioncontrol_git_log_update_repository(&$repository) {
     'count' => 1,
     'from' => 0
   );
+  $ranges = array();
+  $branches_per_commit = array();
   foreach ($branches as $branch) {
     $constraints['branches'] = array($branch);
     $commit_op = versioncontrol_get_operations($constraints, $options);
@@ -149,9 +167,22 @@ function _versioncontrol_git_log_update_repository(&$repository) {
     // Generate either '[branch]' or '[hash]..[branch]' as range specification for git log.
     $range = $latest_commit ? ($latest_commit .'..') : '';
     $range .= $branch;
-
+    $ranges[$branch] = $range;
+    $commits_in_branch = _versioncontrol_git_log_get_commits_in_branch($repository, $range);
+    foreach ($commits_in_branch as $commit) {
+      if (!isset($branches_per_commit[$commit]) || !is_array($branches_per_commit[$commit])) {
+        $branches_per_commit[$commit] = array($branch);
+      }
+      else
+      {
+        $branches_per_commit[$commit][] = $branch;
+      }
+    }
+    
+  }
+  foreach ($branches as $branch) {
     // Update commits from Git.
-    _versioncontrol_git_log_get_commits($repository, $range);
+    _versioncontrol_git_log_get_commits($repository, $ranges[$branch], $branches_per_commit);
   }
   
   // Check tags.
@@ -264,6 +295,7 @@ function _versioncontrol_git_log_parse_branches(&$logs) {
  * @return array List of branches.
  */
 function _versioncontrol_git_log_get_branches_by_rev($revision) {
+  return $branches_per_commit[$revision];
   $logs = _versioncontrol_git_log_exec("git branch --contains $revision", $temp_file); // Query branches.
   $branches = _versioncontrol_git_log_parse_branches($logs); // Parse output.
   /*if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
@@ -307,10 +339,10 @@ function _versioncontrol_git_log_parse_tags(&$logs) {
 /**
  * Get all commits from Git using 'git log' command.
  */
-function _versioncontrol_git_log_get_commits($repository, $range) {
+function _versioncontrol_git_log_get_commits($repository, $range, $branches_per_commit) {
   $command = "git log $range --numstat --summary --pretty=format:\"%H%n%P%n%aN <%ae>%n%at%n%s%n%bENDOFOUTPUTGITMESSAGEHERE\" --reverse";
   $logs = _versioncontrol_git_log_exec($command, $temp_file);
-  _versioncontrol_git_log_parse($repository, $logs, $range); // Parse the info from the raw output.
+  _versioncontrol_git_log_parse($repository, $logs, $range, $branches_per_commit); // Parse the info from the raw output.
 
   if (variable_get('versioncontrol_git_log_use_file', 1)) {
     fclose($logs);
@@ -393,7 +425,7 @@ function _versioncontrol_git_get_source_item($repository, $filename, $parents) {
  *       as string containing the name of the branch.
  * @param string $branch The current branch.
  */
-function _versioncontrol_git_log_parse($repository, &$logs, $range) {
+function _versioncontrol_git_log_parse($repository, &$logs, $range, $branches_per_commit) {
   // If the log was retrieved by taking the return value of exec(), we've
   // got an array and navigate it via next(). If we stored the log in a
   // temporary file, $logs is a file handle that we need to fgets() instead.
@@ -483,7 +515,8 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range) {
       }
     }
     // Get the branches affected by the commit
-    $branches = _versioncontrol_git_log_get_branches_by_rev($revision);
+    $branches = $branches_per_commit[$revision];
+    //$branches = _versioncontrol_git_log_get_branches_by_rev($revision);
     $label = array(
       'name' => '', //filled later
       'type' => VERSIONCONTROL_OPERATION_BRANCH,
