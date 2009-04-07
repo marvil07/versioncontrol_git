@@ -21,6 +21,11 @@ If you know that the functionality is (or should be) provided by the
 Version Control API (and not by the Git backend), please submit an issue there:
 http://drupal.org/project/issues/versioncontrol.
 
+INSTALL
+-------
+
+* Please use CVS version of versioncontrolapi
+* Install as usual, see http://drupal.org/node/70151 for further information.
 
 AUTHOR
 ------
