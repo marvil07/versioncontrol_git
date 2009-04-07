@@ -28,20 +28,21 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   }
 
   // Get the list of current branches from Git.
-  $branches = _versioncontrol_git_log_get_branches();
+  $branch_list = _versioncontrol_git_log_get_branches();
   // Get the existing branches.
-  $existing_branches = versioncontrol_get_label_list($repository, VERSIONCONTROL_OPERATION_BRANCH);
+  /*$existing_branches = versioncontrol_get_label_list($repository, VERSIONCONTROL_OPERATION_BRANCH);
   // Check for new branches.
-  $new_branches = array_diff($branches, $existing_branches);
-  $label =array(
+  $new_branches = array_diff($branches, $existing_branches);*/
+  $add_branch_label =array(
         'name' => '', //filled later
         'type' => VERSIONCONTROL_OPERATION_BRANCH,
-        'action' => VERSIONCONTROL_ACTION_ADDED
+        'action' => VERSIONCONTROL_ACTION_MODIFIED
   );
-  // Insert new branches in the database.
-  foreach ($new_branches as $branch) {
-    $label['name'] = $branch;
-    versioncontrol_ensure_label($repository, $label);
+  $branches = array();
+  foreach ($branch_list as $branch_name) {
+    $add_branch_label['name'] = $branch_name;
+    $label_ret = versioncontrol_ensure_label($repository, $add_branch_label);
+    $branches[$branch_name] = $label_ret;
   }
   //jpetso and me (corni) came to the conclusion that we will not delete branches.
   // Record new commits.
@@ -60,8 +61,8 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   $branches_per_commit = array();
   // Get the list of current branches from Git.
   // Generate the range per branch with which git shall be called.
-  foreach ($branches as $branch) {
-    $constraints['branches'] = array($branch);
+  foreach ($branches as $branch_name => $label) {
+    $constraints['branches'] = array($branch_name);
     $commit_op = versioncontrol_get_operations($constraints, $options);
     $latest_commit = FALSE;
     if (!empty($commit_op)) {
@@ -71,24 +72,24 @@ function _versioncontrol_git_log_update_repository(&$repository) {
     }
     // Generate either '[branch]' or '[hash]..[branch]' as range specification for git log.
     $range = $latest_commit ? ($latest_commit .'..') : '';
-    $range .= $branch;
-    $ranges[$branch] = $range;
+    $range .= $branch_name;
+    $ranges[$branch_name] = $range;
     $commits_in_branch = _versioncontrol_git_log_get_commits_in_branch($repository, $range);
     foreach ($commits_in_branch as $commit) {
       if (!isset($branches_per_commit[$commit]) || !is_array($branches_per_commit[$commit])) {
-        $branches_per_commit[$commit] = array($branch);
+        $branches_per_commit[$commit] = array($label);
       }
       else
       {
-        $branches_per_commit[$commit][] = $branch;
+        $branches_per_commit[$commit][] = $label;
       }
     }
   }
   // This uses an extra loop on purpose!
   // Process all commits on a per-branch base.
-  foreach ($branches as $branch) {
+  foreach ($branches as $branch_name => $label) {
     // Update commits from Git.
-    _versioncontrol_git_process_commits($repository, $ranges[$branch], $branches_per_commit);
+    _versioncontrol_git_process_commits($repository, $ranges[$branch_name], $branches_per_commit);
   }
   
   // Check tags.
@@ -440,13 +441,50 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, $branches_pe
       'type' => VERSIONCONTROL_OPERATION_COMMIT,
       'repository' => $repository,
       'date' => 0, //filled later
-      'author' => '',//filled later
+      'username' => '',//filled later
       'message' => '', //filled later
       'revision' => '', //filled later
       'labels' => array()
     );
     // $line already points to the revision
     $revision = trim($line);
+    $constraints = array(
+      'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
+      'revisions' => array($revision),
+      'vcs' => array('git'),
+      'repo_ids' => array($repository['repo_id'])
+    );
+    $same_rev_commit = versioncontrol_get_operations($constraints);
+    $adjusted_commit = FALSE;
+    foreach ($same_rev_commit as $vc_op_id => $rev_commit) {
+      $adjusted_commit = TRUE;
+      // We already have a commit with this revision recorded, so use a faster parser then.
+      $rev_commit_items = versioncontrol_get_operation_items($rev_commit, TRUE);
+      versioncontrol_delete_operation($rev_commit);
+      // Use the updated labels array
+      $rev_commit['labels'] = $branches_per_commit[$revision];
+      versioncontrol_insert_operation($rev_commit, $rev_commit_items);
+      // We'll deal with branches somewhere else in a more efficient way :)
+      $line = $next($logs); // Get $parents
+      $line = $next($logs); // Get Author
+      $line = $next($logs); // Get Date as Timestamp
+      // Pretend message parsing
+      while (($line = $next($logs)) !== FALSE) {
+        if (trim($line) == 'ENDOFOUTPUTGITMESSAGEHERE') {
+          break;
+        }
+      }
+      $line = $next($logs);
+      // Skip everything --summary or --numstat related output
+      while (!(preg_match("/^([a-f0-9]{40})$/", trim($line))) && $line !== FALSE) {
+        $line = $next($logs);
+      }
+    }
+    // We can't do a continue for the big while in the foreach loop.
+    if ($adjusted_commit) {
+      continue;
+    }
+    
     $op['revision'] = $revision;
     $line = $next($logs); // Get $parents
     $parents = explode(" ", trim($line));
@@ -457,7 +495,7 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, $branches_pe
       $merge = TRUE;
     }
     $line = $next($logs); // Get Author
-    $op['author'] = trim($line);
+    $op['username'] = trim($line);
     $line = $next($logs); // Get Date as Timestamp
     $op['date'] = trim($line);
     // Get revision message.
@@ -517,29 +555,7 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, $branches_pe
       }
     }
     // Get the branches affected by the commit
-    $branches = $branches_per_commit[$revision];
-    $label = array(
-      'name' => '', //filled later
-      'type' => VERSIONCONTROL_OPERATION_BRANCH,
-      'action' => VERSIONCONTROL_ACTION_MODIFIED
-    );
-    foreach ($branches as $branch) {
-      $label['name'] = $branch;
-      $op['labels'][] = $label; 
-    }
-    
-    //Delete all previous commits with this $rev, this is needed to avoid duplicates caused by adding a branch
-    $constraints = array(
-      'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
-      'revisions' => array($revision),
-      'vcs' => array('git'),
-      'repo_ids' => array($repository['repo_id'])
-    );
-    $options = array(); 
-    $same_rev_commit = versioncontrol_get_operations($constraints, $options);
-    foreach ($same_rev_commit as $vc_op_id => $commit) {
-      versioncontrol_delete_operation($commit);
-    }
+    $op['labels'] = $branches_per_commit[$revision];
     versioncontrol_insert_operation($op, $op_items);
   } // Loop to the next revision.
 }
