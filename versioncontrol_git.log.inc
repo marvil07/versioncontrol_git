@@ -15,7 +15,35 @@
 function _versioncontrol_git_log_parse_tag_info($repository, $tag_name, &$logs) {
   $matches = array();
   $next = is_array($logs) ? 'next' : 'fgets';
-  $line = next($logs); // Get the first line, we don't need it :P
+  $line = next($logs); // Check the first line for an un-annotated tag
+  if (trim($line) == 'ENDOFGITTAGOUTPUTMESAGEHERE') {
+    //let's get the author and the date from the tagged commit, better than nothing.
+    $line = next($logs); // Get the tagged commit
+    $tagged_commit = trim($line);
+    $constraints = array(
+      'vcs' => array('git'),
+      'repo_ids' => array($repository['repo_id']),
+      'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
+      'revisions' => array($tagged_commit)
+    );
+    $op = versioncontrol_get_operations($constraints);
+    $op = array_pop($op);
+    return array (
+      'type' => VERSIONCONTROL_OPERATION_TAG,
+      'repository' => $repository,
+      'date' => $op['date']+1, // We want to be displayed *after* the tagged commit.
+      'username' => $op['username'],
+      'message' => "Non-Annotated tag of '$tag_name'\nAttention, tagger and date are guessed.",
+      'revision' => $tagged_commit,
+      'labels' => array(
+        0 => array(
+          'name' => $tag_name,
+          'type' => VERSIONCONTROL_OPERATION_TAG,
+          'action' => VERSIONCONTROL_ACTION_ADDED
+        )
+      )
+    );
+  }
   $line = next($logs); // Get the tagger
   preg_match('/^Tagger: (.+)$/', $line, $matches);
   $tagger = trim($matches[1]);
@@ -85,7 +113,7 @@ function _versioncontrol_git_process_tags($repository, $new_tags) {
  * 
  */
 function _versioncontrol_git_log_get_commits_in_branch($repository, $range) {
-  $logs = _versioncontrol_git_log_exec("git rev-list $range", $temp_file); // Query tags.
+  $logs = _versioncontrol_git_log_exec("git rev-list $range --", $temp_file); // Query tags.
   $next = is_array($logs) ? 'next' : 'fgets';
   $commits = array();
   while (($line = $next($logs)) !== FALSE) {
@@ -112,24 +140,13 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   chdir($root); // Set working directory to root.
   
   $branches = _versioncontrol_git_log_get_branches(); // Get the list of current branches from Git.
-  $constraints = array(
-    'vcs' => array('git'),
-    'repo_ids' => array($repository['repo_id']),
-    'types' => array(VERSIONCONTROL_OPERATION_BRANCH)
-  );
-  $existing_branch_ops = versioncontrol_get_operations($constraints);
-  $existing_branches = array();
-  foreach($existing_branch_ops as $branch_op) {
-    if(!in_array($branch_op['labels'][0]['name'], $existing_branches)) {
-      $existing_branches[] = $branch_op['labels'][0]['name'];
-    }
-  }
-  
+  // Get the existing branches.
+  $existing_branches = versioncontrol_get_label_list($repository, VERSIONCONTROL_OPERATION_BRANCH);
   // Check for any branches that are no longer part of the repository.
+  // We don't do this atm on purpose.
   //$obsolete_branches = array_diff($existing_branches, $branches);
   // Check for new branches.
   $new_branches = array_diff($branches, $existing_branches);
-
   $label =array(
         'name' => '', //filled later
         'type' => VERSIONCONTROL_OPERATION_BRANCH,
@@ -340,7 +357,7 @@ function _versioncontrol_git_log_parse_tags(&$logs) {
  * Get all commits from Git using 'git log' command.
  */
 function _versioncontrol_git_log_get_commits($repository, $range, $branches_per_commit) {
-  $command = "git log $range --numstat --summary --pretty=format:\"%H%n%P%n%aN <%ae>%n%at%n%s%n%bENDOFOUTPUTGITMESSAGEHERE\" --reverse";
+  $command = "git log $range --numstat --summary --pretty=format:\"%H%n%P%n%aN <%ae>%n%at%n%s%n%bENDOFOUTPUTGITMESSAGEHERE\" --reverse --";
   $logs = _versioncontrol_git_log_exec($command, $temp_file);
   _versioncontrol_git_log_parse($repository, $logs, $range, $branches_per_commit); // Parse the info from the raw output.
 
