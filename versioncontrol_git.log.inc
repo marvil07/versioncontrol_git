@@ -17,26 +17,6 @@
  *   TRUE if the logs were updated, or FALSE if fetching and updating the logs
  *   failed for whatever reason.
  */
-/**
- * Get an array containing branch name for key and the latest recorded commit
- * revision hash.
- */
-/*
-function _versioncontrol_git_get_lasest_commits($repository) {
-  $result = db_query('SELECT *
-    FROM {versioncontrol_git_latest_commits} c
-     INNER JOIN {versioncontrol_branches} b
-      ON c.branch_id = b.branch_id
-    WHERE b.repo_id = %d',
-    $repository['repo_id']);
-
-  $latest_commits = array();
-  while ($latest_commit = db_fetch_object($result)) {
-    $latest_commits[$latest_commit->branch_name] = $latest_commit->revision;
-  }
-  return $latest_commits;
-}
-
 function _versioncontrol_git_log_update_repository(&$repository) {
   //TODO: fix the log file or remove it.
   variable_set('versioncontrol_git_log_use_file', 0);
