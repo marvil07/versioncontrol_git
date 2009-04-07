@@ -10,141 +10,24 @@
  */
 
 /**
- * 
- */
-function _versioncontrol_git_log_parse_tag_info($repository, $tag_name, &$logs) {
-  $matches = array();
-  $next = is_array($logs) ? 'next' : 'fgets';
-  $line = next($logs); // Check the first line for an un-annotated tag
-  if (trim($line) == 'ENDOFGITTAGOUTPUTMESAGEHERE') {
-    //let's get the author and the date from the tagged commit, better than nothing.
-    $line = next($logs); // Get the tagged commit
-    $tagged_commit = trim($line);
-    $constraints = array(
-      'vcs' => array('git'),
-      'repo_ids' => array($repository['repo_id']),
-      'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
-      'revisions' => array($tagged_commit)
-    );
-    $op = versioncontrol_get_operations($constraints);
-    $op = array_pop($op);
-    return array (
-      'type' => VERSIONCONTROL_OPERATION_TAG,
-      'repository' => $repository,
-      'date' => $op['date']+1, // We want to be displayed *after* the tagged commit.
-      'username' => $op['username'],
-      'message' => "Non-Annotated tag of '$tag_name'\nAttention, tagger and date are guessed.",
-      'revision' => $tagged_commit,
-      'labels' => array(
-        0 => array(
-          'name' => $tag_name,
-          'type' => VERSIONCONTROL_OPERATION_TAG,
-          'action' => VERSIONCONTROL_ACTION_ADDED
-        )
-      )
-    );
-  }
-  $line = next($logs); // Get the tagger
-  preg_match('/^Tagger: (.+)$/', $line, $matches);
-  $tagger = trim($matches[1]);
-  $line = next($logs); // Get date
-  preg_match('/^Date: (.+)$/', $line, $matches);
-  $date = strtotime($matches[1]);
-  $line = next($logs); // Empty line
-  // Get the tag message
-  $message = '';
-  $i = 0;
-  while (($line = $next($logs)) !== FALSE) {
-    if (trim($line) == 'ENDOFGITTAGOUTPUTMESAGEHERE') {
-      break;
-    }
-    if ($i == 1) {
-      $message .= "\n";
-    }
-    $message .= trim($line) ."\n";
-    $i++;
-  }
-  $line = next($logs); // Get the tagged commit
-  $tagged_commit = trim($line);
-  // By now, we're done with the parsing, construct the op array
-  return array (
-    'type' => VERSIONCONTROL_OPERATION_TAG,
-    'repository' => $repository,
-    'date' => $date,
-    'username' => $tagger,
-    'message' => $message,
-    'revision' => $tagged_commit,
-    'labels' => array(
-      0 => array(
-        'name' => $tag_name,
-        'type' => VERSIONCONTROL_OPERATION_TAG,
-        'action' => VERSIONCONTROL_ACTION_ADDED
-      )
-    )
-  );
-
-}
-
-/**
- * 
- */
-function _versioncontrol_git_get_tag_operation($repository, $tag) {
-  $logs = _versioncontrol_git_log_exec("git show $tag --pretty=format:\"ENDOFGITTAGOUTPUTMESAGEHERE%n%H\" --", $temp_file); // Query tags.
-  $tag_op = _versioncontrol_git_log_parse_tag_info($repository, $tag, $logs); // Parse output.
-  if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
-    fclose($logs);
-    unlink($temp_file);
-  }
-  return $tag_op;
-}
-
-/**
- *
- */
-function _versioncontrol_git_process_tags($repository, $new_tags) {
-  foreach ($new_tags as $tag) {
-    $tag_op = _versioncontrol_git_get_tag_operation($repository, $tag);
-    $op_items = array();
-    versioncontrol_insert_operation($tag_op, $op_items);
-  }
-}
-
-/**
- * 
- */
-function _versioncontrol_git_log_get_commits_in_branch($repository, $range) {
-  $logs = _versioncontrol_git_log_exec("git rev-list $range --", $temp_file); // Query tags.
-  $next = is_array($logs) ? 'next' : 'fgets';
-  $commits = array();
-  while (($line = $next($logs)) !== FALSE) {
-    $commits[] = trim($line);
-  }
-  if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
-    fclose($logs);
-    unlink($temp_file);
-  }
-  return $commits;
-}
-/**
  * Actually update the repository by fetching commits and other stuff
  * directly from the repository, invoking the git executable.
- *
+ * @param $repository
  * @return
  *   TRUE if the logs were updated, or FALSE if fetching and updating the logs
  *   failed for whatever reason.
  */
 function _versioncontrol_git_log_update_repository(&$repository) {
-    variable_set('versioncontrol_git_log_use_file', 0);
+  //TODO: fix the log file or remove it.
+  variable_set('versioncontrol_git_log_use_file', 0);
   
   $root = escapeshellcmd($repository['root']);
   chdir($root); // Set working directory to root.
   
-  $branches = _versioncontrol_git_log_get_branches(); // Get the list of current branches from Git.
+  // Get the list of current branches from Git.
+  $branches = _versioncontrol_git_log_get_branches();
   // Get the existing branches.
   $existing_branches = versioncontrol_get_label_list($repository, VERSIONCONTROL_OPERATION_BRANCH);
-  // Check for any branches that are no longer part of the repository.
-  // We don't do this atm on purpose.
-  //$obsolete_branches = array_diff($existing_branches, $branches);
   // Check for new branches.
   $new_branches = array_diff($branches, $existing_branches);
   $label =array(
@@ -152,7 +35,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
         'type' => VERSIONCONTROL_OPERATION_BRANCH,
         'action' => VERSIONCONTROL_ACTION_ADDED
   );
-  //new branches
+  // Insert new branches in the database.
   foreach ($new_branches as $branch) {
     $label['name'] = $branch;
     versioncontrol_ensure_label($repository, $label);
@@ -172,6 +55,8 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   );
   $ranges = array();
   $branches_per_commit = array();
+  // Get the list of current branches from Git.
+  // Generate the range per branch with which git shall be called.
   foreach ($branches as $branch) {
     $constraints['branches'] = array($branch);
     $commit_op = versioncontrol_get_operations($constraints, $options);
@@ -195,11 +80,12 @@ function _versioncontrol_git_log_update_repository(&$repository) {
         $branches_per_commit[$commit][] = $branch;
       }
     }
-    
   }
+  // This uses an extra loop on purpose!
+  // Process all commits on a per-branch base.
   foreach ($branches as $branch) {
     // Update commits from Git.
-    _versioncontrol_git_log_get_commits($repository, $ranges[$branch], $branches_per_commit);
+    _versioncontrol_git_process_commits($repository, $ranges[$branch], $branches_per_commit);
   }
   
   // Check tags.
@@ -228,28 +114,6 @@ function _versioncontrol_git_log_update_repository(&$repository) {
             $repository['git_specific']['updated'], $repository['repo_id']);
   return TRUE;
 }
-
-/**
- * Get an array containing branch name for key and the latest recorded commit
- * revision hash.
- */
-/*
-function _versioncontrol_git_get_lasest_commits($repository) {
-  $result = db_query('SELECT *
-    FROM {versioncontrol_git_latest_commits} c
-     INNER JOIN {versioncontrol_branches} b
-      ON c.branch_id = b.branch_id
-    WHERE b.repo_id = %d',
-    $repository['repo_id']);
-
-  $latest_commits = array();
-  while ($latest_commit = db_fetch_object($result)) {
-    $latest_commits[$latest_commit->branch_name] = $latest_commit->revision;
-  }
-  return $latest_commits;
-}
-*/
-
 /**
  * Execute a Git command using the root context and the command to be executed.
  * 
@@ -307,22 +171,6 @@ function _versioncontrol_git_log_parse_branches(&$logs) {
 }
 
 /**
- * Get branches by revision from Git using 'git branch --contains' command.
- * 
- * @return array List of branches.
- */
-function _versioncontrol_git_log_get_branches_by_rev($revision) {
-  return $branches_per_commit[$revision];
-  $logs = _versioncontrol_git_log_exec("git branch --contains $revision", $temp_file); // Query branches.
-  $branches = _versioncontrol_git_log_parse_branches($logs); // Parse output.
-  /*if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
-    fclose($logs);
-    unlink($temp_file);
-  }*/
-  return $branches;
-}
-
-/**
  * Get tags from Git using 'tag -l' command.
  */
 function _versioncontrol_git_log_get_tags() {
@@ -354,24 +202,178 @@ function _versioncontrol_git_log_parse_tags(&$logs) {
 }
 
 /**
- * Get all commits from Git using 'git log' command.
+ * Parses output of git show $tag_name provided by _versioncontrol_git_get_tag_operation() to retrieve an $operation for inserting a tag.
+ * @param $repository
+ * @param sring $tag_name The name of the parsed tag
+ * @param $logs The output of git show
+ * @return array An $operation array which contains the info for the tag.
  */
-function _versioncontrol_git_log_get_commits($repository, $range, $branches_per_commit) {
+function _versioncontrol_git_log_parse_tag_info($repository, $tag_name, &$logs) {
+  $matches = array();
+  $next = is_array($logs) ? 'next' : 'fgets';
+  $line = next($logs); // Check the first line for an un-annotated tag
+  if (trim($line) == 'ENDOFGITTAGOUTPUTMESAGEHERE') {
+    //let's get the author and the date from the tagged commit, better than nothing.
+    $line = next($logs); // Get the tagged commit
+    $tagged_commit = trim($line);
+    $constraints = array(
+      'vcs' => array('git'),
+      'repo_ids' => array($repository['repo_id']),
+      'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
+      'revisions' => array($tagged_commit)
+    );
+    $op = versioncontrol_get_operations($constraints);
+    $op = array_pop($op);
+    return array (
+      'type' => VERSIONCONTROL_OPERATION_TAG,
+      'repository' => $repository,
+      'date' => $op['date']+1, // We want to be displayed *after* the tagged commit.
+      'username' => $op['username'],
+      'message' => "Non-Annotated tag of '$tag_name'\nAttention, tagger and date are guessed, please use 'git tag -a' the next time you tag.",
+      'revision' => $tagged_commit,
+      'labels' => array(
+        0 => array(
+          'name' => $tag_name,
+          'type' => VERSIONCONTROL_OPERATION_TAG,
+          'action' => VERSIONCONTROL_ACTION_ADDED
+        )
+      )
+    );
+  }
+  $line = next($logs); // Get the tagger
+  preg_match('/^Tagger: (.+)$/', $line, $matches);
+  $tagger = trim($matches[1]);
+  $line = next($logs); // Get date
+  preg_match('/^Date: (.+)$/', $line, $matches);
+  $date = strtotime($matches[1]);
+  $line = next($logs); // Empty line
+  // Get the tag message
+  $message = '';
+  $i = 0;
+  while (($line = $next($logs)) !== FALSE) {
+    if (trim($line) == 'ENDOFGITTAGOUTPUTMESAGEHERE') {
+      break;
+    }
+    if ($i == 1) {
+      $message .= "\n";
+    }
+    $message .= trim($line) ."\n";
+    $i++;
+  }
+  $line = next($logs); // Get the tagged commit
+  $tagged_commit = trim($line);
+  // By now, we're done with the parsing, construct the op array
+  return array (
+    'type' => VERSIONCONTROL_OPERATION_TAG,
+    'repository' => $repository,
+    'date' => $date,
+    'username' => $tagger,
+    'message' => $message,
+    'revision' => $tagged_commit,
+    'labels' => array(
+      0 => array(
+        'name' => $tag_name,
+        'type' => VERSIONCONTROL_OPERATION_TAG,
+        'action' => VERSIONCONTROL_ACTION_ADDED
+      )
+    )
+  );
+}
+
+/**
+ * Invokes 'git-show tag' to get information about a tag.
+ * It's output is later parsed by _versioncontrol_git_log_parse_tag_info().
+ * @param $repository
+ * @param string $tag The name of the tag.
+ * @return An $operation array which contains the info for the tag.
+ */
+function _versioncontrol_git_get_tag_operation($repository, $tag) {
+  $logs = _versioncontrol_git_log_exec("git show $tag --pretty=format:\"ENDOFGITTAGOUTPUTMESAGEHERE%n%H\" --", $temp_file); // Query tags.
+  $tag_op = _versioncontrol_git_log_parse_tag_info($repository, $tag, $logs); // Parse output.
+  if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
+    fclose($logs);
+    unlink($temp_file);
+  }
+  return $tag_op;
+}
+
+/**
+ * Does all the processing for all new tags.
+ * @param $repository
+ * @param array $new_tags An array of strings for all new tags which shall be processed
+ */
+function _versioncontrol_git_process_tags($repository, $new_tags) {
+  foreach ($new_tags as $tag) {
+    $tag_op = _versioncontrol_git_get_tag_operation($repository, $tag);
+    $op_items = array();
+    versioncontrol_insert_operation($tag_op, $op_items);
+    $constraints = array(
+      'vcs' => array('git'),
+      'repo_ids' => array($repository['repo_id']),
+      'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
+      'revisions' => array($tag_op['revision'])
+    );
+    $tag_commit = versioncontrol_get_operations($constraints);
+    foreach ($tag_commit as $vc_op_id => $tag_commit_op) {
+      $tag_commit_items = versioncontrol_get_operation_items($tag_commit_op, TRUE);
+      versioncontrol_delete_operation($tag_commit[$vc_op_id]);
+      $tag_commit_op['labels'][] = array(
+        'name' => $tag,
+        'action' => VERSIONCONTROL_ACTION_MODIFIED,
+        'type' => VERSIONCONTROL_OPERATION_TAG
+      );
+      versioncontrol_insert_operation($tag_commit_op, $tag_commit_items);
+    }
+  }
+}
+
+
+/**
+ * Get all commits from Git using 'git log' command.
+ * @param $repository
+ * @param string $range the computed range for the branch we check
+ * @param array $branches_per_commit An array of all commits we will encounter with a list of branches they are in.
+ */
+function _versioncontrol_git_process_commits($repository, $range, $branches_per_commit) {
   $command = "git log $range --numstat --summary --pretty=format:\"%H%n%P%n%aN <%ae>%n%at%n%s%n%bENDOFOUTPUTGITMESSAGEHERE\" --reverse --";
   $logs = _versioncontrol_git_log_exec($command, $temp_file);
-  _versioncontrol_git_log_parse($repository, $logs, $range, $branches_per_commit); // Parse the info from the raw output.
-
+  _versioncontrol_git_log_parse_commits($repository, $logs, $branches_per_commit); // Parse the info from the raw output.
   if (variable_get('versioncontrol_git_log_use_file', 1)) {
     fclose($logs);
     unlink($temp_file);
   }
-
-  
 }
 
+/**
+ * This function returns all commits in the given range.
+ * It is used to get all new commits in a branch, which is specified by @p $range
+ * @param $repository
+ * @param string $range The range of the commits to retrieve
+ * @return array An array of strings with all commit id's in it
+ */
+function _versioncontrol_git_log_get_commits_in_branch($repository, $range) {
+  $logs = _versioncontrol_git_log_exec("git rev-list $range --", $temp_file); // Query tags.
+  $next = is_array($logs) ? 'next' : 'fgets';
+  $commits = array();
+  while (($line = $next($logs)) !== FALSE) {
+    $commits[] = trim($line);
+  }
+  if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
+    fclose($logs);
+    unlink($temp_file);
+  }
+  return $commits;
+}
+
+/**
+ * 
+ * @param $repository
+ * @param $revision The revision of the parent item.
+ * @param $filename The filename of the parent item.
+ * @return array An $item array ready to use for $operation['source_items']
+ */
 function _versioncontrol_git_get_source_item_helper($repository, $revision, $filename) {
   $constraints = array(
-    //'revisions' => array($revision),
     'vcs' => array('git'),
     'repo_ids' => array($repository['repo_id']),
     'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
@@ -402,47 +404,26 @@ function _versioncontrol_git_get_source_item_helper($repository, $revision, $fil
  * 
  * @param $repository as we get it from the API
  * @param string $filename the revision of the current item we shall get it's source from
- * @return array source_items array
+ * @return array $source_items array for use in an $operation. 
  */
 function _versioncontrol_git_get_source_item($repository, $filename, $parents) {
-  $return = array();
+  $ret = array();
   foreach ($parents as $rev) {
-    $return[] = _versioncontrol_git_get_source_item_helper($repository, $rev, $filename);
+    $ret[] = _versioncontrol_git_get_source_item_helper($repository, $rev, $filename);
   }
-  return $return;
+  return $ret;
 }
+
 /**
- * Parse the logs into a list of file revision objects, so that they
- * can be processed more easily.
+ * Parse the output of 'git log' and insert commits based on it's data.
  *
  * @param $repository
  *   The repository array, as given by the Version Control API.
- * @param $logs
- *   Either an array containing all the output lines (if the output was
- *   directly read by exec()) or a file handle of the temporary file
- *   that the output was written to.
- * @param $file_revisions
- *   An array that will be filled with a simple, flat list of
- *   file revision objects. Each object has the following properties:
- *
- *   - revision: The revision number (a string, e.g. '1.1' or '1.59.2.3').
- *   - date: The time of the revision, as Unix timestamp.
- *   - username: The Git username of the committer.
- *   - dead: TRUE if the file revision is in the "dead" (deleted) state,
- *       or FALSE if it currently exists in the repository.
- *   - lines_added: An integer that specifies how many lines have been added
- *       in this revision.
- *   - lines_removed: An integer that specifies how many lines have been added
- *       in this revision.
- *   - commitid: Optional property, may exist in more recent versions of Git.
- *       (It seems to have been introduced in 2005 or something.) If given,
- *       this is a string which is the same for all file revisions in a commit.
- *   - message: The commit message (a string with possible line breaks).
- *   - branch: The branch that this file revision was committed to,
- *       as string containing the name of the branch.
- * @param string $branch The current branch.
+ * @param $logs The output of 'git log' to parse
+ * @param array $branches_per_commit An array which has all branches for all commits in it.
+ * 	It is used to construct $operation['labels'].
  */
-function _versioncontrol_git_log_parse($repository, &$logs, $range, $branches_per_commit) {
+function _versioncontrol_git_log_parse_commits($repository, &$logs, $branches_per_commit) {
   // If the log was retrieved by taking the return value of exec(), we've
   // got an array and navigate it via next(). If we stored the log in a
   // temporary file, $logs is a file handle that we need to fgets() instead.
@@ -522,6 +503,7 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range, $branches_pe
     }
     while (($line = $next($logs)) !== FALSE);
     
+    //This is an inconsistency in got log output...
     if ($read) {
       $line = $next($logs);
     }
@@ -533,7 +515,6 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range, $branches_pe
     }
     // Get the branches affected by the commit
     $branches = $branches_per_commit[$revision];
-    //$branches = _versioncontrol_git_log_get_branches_by_rev($revision);
     $label = array(
       'name' => '', //filled later
       'type' => VERSIONCONTROL_OPERATION_BRANCH,
@@ -559,180 +540,3 @@ function _versioncontrol_git_log_parse($repository, &$logs, $range, $branches_pe
     versioncontrol_insert_operation($op, $op_items);
   } // Loop to the next revision.
 }
-
-/**
- * Get an already existing revision from the $file_revisions array with
- * the specified revision hash.
- */
-/*unused
-function _versioncontrol_git_log_get_duplicate_revision(&$file_revisions, $revision) {
-  foreach ($file_revisions as $file_revision) {
-    if ($file_revision->revision == $revision) {
-      return $file_revision;
-    }
-  }
-  return NULL;
-}
-*/
-
-/**
- * Update the database by processing and inserting the previously retrieved
- * file revision objects.
- *
- * @param $repository
- *   The repository array, as given by the Version Control API.
- * @param $file_revisions
- *   A simple, flat list of file revision objects - the combined set of
- *   return values from _versioncontrol_git_log_parse().
- */
-/*
-function _versioncontrol_git_log_process($repository, $file_revisions) {
-  $commit_actions = array();
-
-  foreach ($file_revisions as $file_revision) {
-    // Don't insert the same revision twice.
-    $vc_op_id = db_result(db_query(
-      "SELECT op.vc_op_id
-       FROM {versioncontrol_git_item_revisions} ir
-        INNER JOIN {versioncontrol_operations} op
-         ON ir.vc_op_id = op.vc_op_id
-        INNER JOIN {versioncontrol_commits} c
-         ON ir.vc_op_id = c.vc_op_id
-       WHERE op.repo_id = %d AND op.type = %d
-        AND ir.path = '%s' AND c.revision = '%s'",
-      $repository['repo_id'], VERSIONCONTROL_OPERATION_COMMIT,
-      $file_revision->path, $file_revision->revision
-    ));
-    if ($vc_op_id) {
-      // Check to make it has been saved to all branches.
-      foreach ($file_revision->branches as $branch) {
-        $branch_id = versioncontrol_get_branch_id($branch, $repository['repo_id']);
-        $count = db_result(db_query("SELECT COUNT(*)
-          FROM {versioncontrol_git_commit_branches}
-          WHERE vc_op_id = %d AND branch_id = %d",
-          $vc_op_id, $branch_id));
-
-        if ($count == 0) { // Add to branch.
-           db_query("INSERT INTO {versioncontrol_git_commit_branches} (vc_op_id, branch_id) VALUES (%d, %d)",
-             $vc_op_id, $branch_id);
-        }
-      }
-      continue;
-    }
-
-    // We might only pick one of those (depending if the file
-    // has been added, modified or deleted) but let's add both
-    // current and source items for now.
-    $commit_action = array(
-      'action' => VERSIONCONTROL_ACTION_MODIFIED, // default, might be changed
-      'current item' => array(
-        'type' => VERSIONCONTROL_ITEM_FILE,
-        'path' => $file_revision->path,
-        'revision' => $file_revision->revision,
-      ),
-      'source items' => array(
-        array(
-          'type' => VERSIONCONTROL_ITEM_FILE,
-          'path' => $file_revision->path,
-          'revision' => NULL, // Will be updated later.
-        ),
-      ),
-      'git_specific' => array(
-        'file_revision' => $file_revision, // Temporary.
-        'lines_added' => $file_revision->lines_added,
-        'lines_removed' => $file_revision->lines_removed,
-        'revision' => $file_revision->revision,
-      ),
-    );
-
-    // Clean up $commit_action based on the action being performed.
-    if ($file_revision->action == VERSIONCONTROL_ACTION_DELETED) {
-      $commit_action['action'] = VERSIONCONTROL_ACTION_DELETED;
-      unset($commit_action['current item']);
-    }
-    else if ($file_revision->action == VERSIONCONTROL_ACTION_ADDED) {
-      $commit_action['action'] = VERSIONCONTROL_ACTION_ADDED;
-      unset($commit_action['source items']);
-    }
-
-    $commit_actions[$file_revision->revision][$file_revision->path] = $commit_action;
-  }
-
-  $commits = array();
-  foreach ($commit_actions as $revision => $commit_actions) {
-    _versioncontrol_git_log_construct_commit($repository, $commit_actions, $commits);
-  }
-
-  // Ok, we've got all commits gathered and in a nice array with
-  // the commit date as key. So the only thing that's left is to sort them
-  // and then send each commit to the API function for inserting into the db.
-  ksort($commits);
-  foreach ($commits as $date => $date_commits) {
-    foreach ($date_commits as $commit_info) {
-      // Record revision and source revision to database.
-      foreach ($commit_info->commit_actions as $path => $commit_action) {
-        // Update source revision.
-        $commit_info->commit_actions[$path]['source items'][0]['revision'] = versioncontrol_git_get_current_revision($repository['repo_id'], $commit_action['source items'][0]['path']);
-      }
-
-      $commit_operation = array(
-        'type' => VERSIONCONTROL_OPERATION_COMMIT,
-        'repository' => $repository,
-        'date' => $date,
-        'username' => $commit_info->commit['username'],
-        'message' => $commit_info->commit['message'],
-        'revision' => $commit_info->commit['revision'],
-        'labels' => array(),
-      );
-      versioncontrol_insert_operation($commit_operation, $commit_info->commit_actions);
-    }
-  }
-}
-*/
-
-/**
- * Use the additional file revision information that has been stored
- * in each commit action array in order to assemble the associated commit.
- * That commit information is then stored as a list item in the given
- * $commits array as an object with 'commit' and 'commit_actions' properties.
- */
-/*
-function _versioncontrol_git_log_construct_commit($repository, $commit_actions, &$commits) {
-  $date = 0;
-
-  // Remove extra commit properties.
-  foreach ($commit_actions as $path => $commit_action) {
-    $file_revision = $commit_action['git_specific']['file_revision'];
-    $revision = $commit_action['git_specific']['revision'];
-    unset($commit_actions[$path]['git_specific']['file_revision']);
-  }
-
-  if ($file_revision->date > $date) {
-    $date = $file_revision->date;
-  }
-
-  // Get the branch id, and insert the branch into the database
-  // if it doesn't exist yet.
-  $branch_ids = array();
-  foreach ($file_revision->branches as $branch) {
-    $branch_ids[] = versioncontrol_git_get_label_id($repository['repo_id'], $branch, VERSIONCONTROL_OPERATION_BRANCH);
-  }
-
-  // Yay, we have all commit actions and all information. Ready to go!
-  $commit = array(
-    'repo_id' => $repository['repo_id'],
-    'date' => $date,
-    'username' => $file_revision->username,
-    'message' => $file_revision->message,
-    'revision' => $revision,
-    'git_specific' => array(
-      'branch_ids' => $branch_ids,
-    ),
-  );
-
-  $commit_info = new StdClass();
-  $commit_info->commit = $commit;
-  $commit_info->commit_actions = $commit_actions;
-  $commits[$date][] = $commit_info;
-}
-*/
