@@ -137,8 +137,11 @@ function _versioncontrol_git_log_update_repository(&$repository) {
     variable_set('versioncontrol_git_log_use_file', 0);
   
   $root = escapeshellcmd($repository['root']);
-  chdir($root); // Set working directory to root.
-  
+  $chdir_ok = chdir($root); // Set working directory to root.
+  if ($chdir_ok === FALSE) {
+    return FALSE;
+  }
+
   $branches = _versioncontrol_git_log_get_branches(); // Get the list of current branches from Git.
   // Get the existing branches.
   $existing_branches = versioncontrol_get_label_list($repository, VERSIONCONTROL_OPERATION_BRANCH);
