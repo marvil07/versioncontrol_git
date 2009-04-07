@@ -25,6 +25,7 @@ INSTALL
 -------
 
 * Please use CVS version of versioncontrolapi
+** because there are some bugs in the versioncontrol API, this fixes some bugs
 * Install as usual, see http://drupal.org/node/70151 for further information.
 
 AUTHOR
