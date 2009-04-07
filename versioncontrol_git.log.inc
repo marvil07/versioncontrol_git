@@ -27,6 +27,8 @@ function _versioncontrol_git_log_update_repository(&$repository) {
     return FALSE;
   }
 
+  // Get the list of current branches from Git.
+  $branches = _versioncontrol_git_log_get_branches();
   // Get the existing branches.
   $existing_branches = versioncontrol_get_label_list($repository, VERSIONCONTROL_OPERATION_BRANCH);
   // Check for new branches.
