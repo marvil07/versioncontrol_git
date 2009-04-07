@@ -1,4 +1,4 @@
-$Id: README.txt,v 1.1.4.1 2009/04/07 17:35:32 marvil07 Exp $
+$Id: README.txt,v 1.1 2008/01/26 21:31:44 boombatower Exp $
 
 Git backend for Version Control API -
 Provides Git commit information and account management as a pluggable backend.
