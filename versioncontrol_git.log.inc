@@ -22,7 +22,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   variable_set('versioncontrol_git_log_use_file', 0);
   
   $root = escapeshellcmd($repository['root']);
-  $chdir_ok = chdir($root); // Set working directory to root.
+  $chdir_ok = @chdir($root); // Set working directory to root.
   if ($chdir_ok === FALSE) {
     return FALSE;
   }
@@ -339,7 +339,7 @@ function _versioncontrol_git_process_tags($repository, $new_tags) {
  * @param array $branches_per_commit An array of all commits we will encounter with a list of branches they are in.
  */
 function _versioncontrol_git_process_commits($repository, $range, $branches_per_commit) {
-  $command = "git log $range --numstat --summary --pretty=format:\"%H%n%P%n%aN <%ae>%n%at%n%s%n%bENDOFOUTPUTGITMESSAGEHERE\" --reverse --";
+  $command = "git log $range --numstat --summary --pretty=format:\"%H%n%P%n%aN <%ae>%n%ct%n%s%n%bENDOFOUTPUTGITMESSAGEHERE\" --reverse --";
   $logs = _versioncontrol_git_log_exec($command, $temp_file);
   _versioncontrol_git_log_parse_commits($repository, $logs, $branches_per_commit); // Parse the info from the raw output.
   if (variable_get('versioncontrol_git_log_use_file', 1)) {
@@ -457,16 +457,16 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, $branches_pe
     $same_rev_commit = versioncontrol_get_operations($constraints);
     $adjusted_commit = FALSE;
     foreach ($same_rev_commit as $vc_op_id => $rev_commit) {
-      $adjusted_commit = TRUE;
       // We already have a commit with this revision recorded, so use a faster parser then.
-      // jpetso, I'd need an API call here which just updates versioncontrol_label_operations!
-      // that's pretty important for speed, we're already slow enough :(
-      $rev_commit_items = versioncontrol_get_operation_items($rev_commit, TRUE);
-      versioncontrol_delete_operation($rev_commit);
-      // Use the updated labels array
-      $rev_commit['labels'] = $branches_per_commit[$revision];
-      versioncontrol_insert_operation($rev_commit, $rev_commit_items);
-
+      $adjusted_commit = TRUE;
+      $labels = array();
+      foreach ( $rev_commit['labels'] as $label) {
+        if ($label['type'] == VERSIONCONTROL_OPERATION_TAG) {
+          $labels[] = $label;
+        }
+      }
+      $labels = array_merge($labels, $branches_per_commit[$revision]);
+      versioncontrol_update_operation_labels_vcs_api($rev_commit, $labels);
       $line = $next($logs); // Get $parents
       $line = $next($logs); // Get Author
       $line = $next($logs); // Get Date as Timestamp
@@ -561,3 +561,23 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, $branches_pe
     versioncontrol_insert_operation($op, $op_items);
   } // Loop to the next revision.
 }
+
+
+/**
+ * Replaces the labels in one operation with the one in @p $labels
+ * Here just till it's in VCS API
+ * @param $operation The operation to replace the labels for
+ * @param array $labels  An array of label-arrays to use for the given operation 
+ */
+function versioncontrol_update_operation_labels_vcs_api($operation, $labels) {
+  db_query("DELETE FROM {versioncontrol_operation_labels}
+            WHERE vc_op_id = %d",
+            $operation['vc_op_id']);
+  foreach ($labels as $label) {
+    db_query("INSERT INTO {versioncontrol_operation_labels}
+              (vc_op_id, label_id, action) VALUES (%d, %d, %d)",
+              $operation['vc_op_id'], $label['label_id'], $label['action']);
+  }
+}
+
+

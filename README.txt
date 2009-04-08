@@ -28,6 +28,11 @@ INSTALL
 ** because there are some bugs in the versioncontrol API, this fixes some bugs
 * Install as usual, see http://drupal.org/node/70151 for further information.
 
+PROBLEMS
+-------
+Before reporting any problems please make sure you are running git 1.6.2.2 or
+later. git 1.5.x is *not* supported!
+
 AUTHOR
 ------
 Jimmy Berry ("boombatower", http://drupal.org/user/214218)
