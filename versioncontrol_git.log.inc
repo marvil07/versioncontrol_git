@@ -504,7 +504,7 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, $branches_pe
       if ($line == 'ENDOFOUTPUTGITMESSAGEHERE') {
         break;
       }
-      if ($i == 1 && $line !== '') {
+      if ($i == 1) {
         $message .= "\n";
       }
       $message .= $line ."\n";
