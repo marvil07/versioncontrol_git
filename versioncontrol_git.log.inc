@@ -319,14 +319,12 @@ function _versioncontrol_git_process_tags($repository, $new_tags) {
     );
     $tag_commit = versioncontrol_get_operations($constraints);
     foreach ($tag_commit as $vc_op_id => $tag_commit_op) {
-      $tag_commit_items = versioncontrol_get_operation_items($tag_commit_op, TRUE);
-      versioncontrol_delete_operation($tag_commit[$vc_op_id]);
       $tag_commit_op['labels'][] = array(
         'name' => $tag,
         'action' => VERSIONCONTROL_ACTION_MODIFIED,
         'type' => VERSIONCONTROL_OPERATION_TAG
       );
-      versioncontrol_insert_operation($tag_commit_op, $tag_commit_items);
+      versioncontrol_update_operation_labels($tag_commit_op, $tag_commit_op['labels']);
     }
   }
 }
