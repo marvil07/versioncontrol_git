@@ -321,11 +321,8 @@ function versioncontrol_git_get_selected_label_from_other_item($repository, $tar
  *  @TODO: adjust later
  */
 function versioncontrol_git_account_username_suggestion($repository, $user) {
-  // For distributed version control systems, the user's email address might be
-  // a more appropriate username than the actual nick - it guarantees unique
-  // identification (= uid association for operations), even though it might
-  // need to be replaced by or amended with the full name on page display.
-  return $user->mail;
+  // Use the kindof standard git identifier here, it's nothing too serious.
+  return $user->name . " <$user->mail>";
 }
 
 /**
@@ -348,8 +345,14 @@ function versioncontrol_git_account_username_suggestion($repository, $user) {
  *   @TODO: adjust, too
  */
 function versioncontrol_git_is_account_username_valid($repository, &$username) {
-  // Continuing the email-style username example from above.
-  return valid_email_address($username);
+  // We want to allow "prename name <email@example.org>"
+  // Or just "nick <email@example.org>"
+  // Or just whatever naming convention you like
+  // This means, we just check for control characters and NULs here
+  if (preg_match("/[\\x00-\\x1f]/", $username) == 0) {
+    return TRUE;
+  }
+  return FALSE;
 }
 
 

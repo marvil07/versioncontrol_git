@@ -329,7 +329,6 @@ function _versioncontrol_git_process_tags($repository, $new_tags) {
   }
 }
 
-
 /**
  * Get all commits from Git using 'git log' command.
  * @param $repository
