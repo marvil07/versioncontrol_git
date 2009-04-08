@@ -503,14 +503,14 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, $branches_pe
     // Get revision message.
     $message = '';
     $i = 0;
-    while (($line = $next($logs)) !== FALSE) {
-      if (trim($line) == 'ENDOFOUTPUTGITMESSAGEHERE') {
+    while (($line = trim($next($logs))) !== FALSE) {
+      if ($line == 'ENDOFOUTPUTGITMESSAGEHERE') {
         break;
       }
-      if ($i == 1) {
+      if ($i == 1 && $line !== '') {
         $message .= "\n";
       }
-      $message .= trim($line) ."\n";
+      $message .= $line ."\n";
       $i++;
     }
     $op['message'] = $message;
