@@ -374,12 +374,16 @@ function _versioncontrol_git_log_get_commits_in_branch($repository, $range) {
  * @return array An $item array ready to use for $operation['source_items']
  */
 function _versioncontrol_git_get_source_item_helper($repository, $revision, $filename, $branches) {
+  $branch_names = array();
+  foreach ($branches as $branch) {
+    $branch_names[] = $branch['name'];
+  }
   $constraints = array(
     'vcs' => array('git'),
     'repo_ids' => array($repository['repo_id']),
     'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
     'paths' => array($filename),
-    'branches' => $branches
+    'branches' => $branch_names
   );
   $commit_op = versioncontrol_get_operations($constraints);
   ksort($commit_op);
