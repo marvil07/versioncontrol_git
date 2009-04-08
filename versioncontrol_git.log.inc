@@ -466,7 +466,7 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, $branches_pe
         }
       }
       $labels = array_merge($labels, $branches_per_commit[$revision]);
-      versioncontrol_update_operation_labels_vcs_api($rev_commit, $labels);
+      versioncontrol_update_operation_labels($rev_commit, $labels);
       $line = $next($logs); // Get $parents
       $line = $next($logs); // Get Author
       $line = $next($logs); // Get Date as Timestamp
@@ -573,23 +573,3 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, $branches_pe
     versioncontrol_insert_operation($op, $op_items);
   } // Loop to the next revision.
 }
-
-
-/**
- * Replaces the labels in one operation with the one in @p $labels
- * Here just till it's in VCS API
- * @param $operation The operation to replace the labels for
- * @param array $labels  An array of label-arrays to use for the given operation 
- */
-function versioncontrol_update_operation_labels_vcs_api($operation, $labels) {
-  db_query("DELETE FROM {versioncontrol_operation_labels}
-            WHERE vc_op_id = %d",
-            $operation['vc_op_id']);
-  foreach ($labels as $label) {
-    db_query("INSERT INTO {versioncontrol_operation_labels}
-              (vc_op_id, label_id, action) VALUES (%d, %d, %d)",
-              $operation['vc_op_id'], $label['label_id'], $label['action']);
-  }
-}
-
-
