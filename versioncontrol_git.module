@@ -661,7 +661,7 @@ function versioncontrol_git_repository($op, $repository) {
  *   If the commit identifier doesn't need to be shortened, the results can
  *   be the same for both versions.
  */
-function versioncontrol_git_format_revision_identifier($revision, $format = 'full') {
+function versioncontrol_git_format_revision_identifier($repository, $revision, $format = 'full') {
   switch ($format) {
     case 'short':
         // Let's return only the first 7 characters of the revision identifier,
