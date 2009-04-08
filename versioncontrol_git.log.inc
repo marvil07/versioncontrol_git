@@ -558,7 +558,7 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, $branches_pe
     }
     while (($line = $next($logs)) !== FALSE);
     
-    //This is an inconsistency in got log output...
+    //This is an inconsistency in git log output...
     if ($read) {
       $line = $next($logs);
     }
