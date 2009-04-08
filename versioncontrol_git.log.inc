@@ -373,12 +373,13 @@ function _versioncontrol_git_log_get_commits_in_branch($repository, $range) {
  * @param $filename The filename of the parent item.
  * @return array An $item array ready to use for $operation['source_items']
  */
-function _versioncontrol_git_get_source_item_helper($repository, $revision, $filename) {
+function _versioncontrol_git_get_source_item_helper($repository, $revision, $filename, $branches) {
   $constraints = array(
     'vcs' => array('git'),
     'repo_ids' => array($repository['repo_id']),
     'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
-    'paths' => array($filename)
+    'paths' => array($filename),
+    'branches' => $branches
   );
   $commit_op = versioncontrol_get_operations($constraints);
   ksort($commit_op);
@@ -399,10 +400,10 @@ function _versioncontrol_git_get_source_item_helper($repository, $revision, $fil
  * @param string $filename the revision of the current item we shall get it's source from
  * @return array $source_items array for use in an $operation. 
  */
-function _versioncontrol_git_get_source_item($repository, $filename, $parents) {
+function _versioncontrol_git_get_source_item($repository, $filename, $parents, $branches) {
   $ret = array();
   foreach ($parents as $rev) {
-    $ret[] = _versioncontrol_git_get_source_item_helper($repository, $rev, $filename);
+    $ret[] = _versioncontrol_git_get_source_item_helper($repository, $rev, $filename, $branches);
   }
   return $ret;
 }
@@ -553,39 +554,34 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, $branches_pe
     }
     // For merges, use our old, secure and slow system. For everything else we can use some hacky sql logic ;)
     //debug
-    /*$merge = TRUE;
-    if ($merge) {*/
+    $merge = TRUE;
+    if ($merge) {
       foreach($op_items as $path => $item) {
         if($item['action'] != VERSIONCONTROL_ACTION_ADDED) {
-          $op_items[$path]['source_items'] = _versioncontrol_git_get_source_item($repository, $path, $parents); 
+          $op_items[$path]['source_items'] = _versioncontrol_git_get_source_item($repository, $path, $parents, $branches_per_commit[$revision]); 
         }
       }
-    /*}
-    else
-    {
-      "SELECT *
-FROM versioncontrol_source_items si
-LEFT JOIN versioncontrol_item_revisions ir ON si.item_revision_id = ir.item_revision_id
-WHERE si.item_revision_id NOT
-IN (
-SELECT source_item_revision_id
-FROM versioncontrol_source_items
-)
-AND si.action != 6
-ORDER BY ir.item_revision_id DESC";
     }
-    $query = "SELECT path, item_revision_id, type, revision
-   	    FROM versioncontrol_item_revisions 
-   	    WHERE item_revision_id = ";
-    $query .= "(SELECT item_revision_id 
-        FROM versioncontrol_item_revisions 
-        WHERE repo_id = 7 
-        AND path ='/versioncontrol_git.log.inc' 
-        ORDER by item_revision_id DESC LIMIT 1)";
-       // implode ("")
-       // WHERE item_revision_id  = 
-       // (SELECT item_revision_id FROM versioncontrol_item_revisions WHERE repo_id = 7 AND path ='/versioncontrol_git.log.inc' ORDER by path DESC, item_revision_id DESC LIMIT 1) OR item_revision_id = (SELECT item_revision_id FROM versioncontrol_item_revisions WHERE repo_id = 7 AND path ='/README.txt' ORDER by path DESC, item_revision_id DESC LIMIT 1) ORDER by path ASC ";
-    */
+    /*else
+    {
+      $query = "SELECT ir.revision AS revision, ir.item_revision_id, ir.path
+          FROM versioncontrol_source_items si
+          LEFT JOIN versioncontrol_item_revisions ir 
+          ON si.item_revision_id = ir.item_revision_id
+          WHERE si.item_revision_id NOT
+          IN (
+          SELECT source_item_revision_id
+          FROM versioncontrol_source_items
+          )
+          AND si.action != 6
+          ORDER BY ir.item_revision_id DESC";
+      $result = db_query($query);
+      while($si = db_fetch_array($result)) {
+        if (isset($op_items[$si['path']])) {
+          $op_items[$si['path']]['source_items'] = array($si);
+        }
+      }
+    }*/
     // Get the branches affected by the commit
     $op['labels'] = $branches_per_commit[$revision];
     versioncontrol_insert_operation($op, $op_items);
