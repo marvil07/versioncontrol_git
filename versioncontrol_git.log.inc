@@ -538,7 +538,13 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, $branches_pe
     do {
       if (preg_match('/^ (\S+) (\S+) (\S+) (.+)$/', $line, $matches)) { // Ensure that same file, they should be in same order.
         $read = TRUE;
-        $op_items['/' . $matches[4]]['action'] = ($matches[1] == 'create' ? VERSIONCONTROL_ACTION_ADDED : VERSIONCONTROL_ACTION_DELETED);
+        // We also can get 'mode' here if someone changes the file permissions.
+        if ($matches[1] == 'create') {
+           $op_items['/' . $matches[4]]['action'] = VERSIONCONTROL_ACTION_ADDED;
+        }
+        else if ($matches[1] == 'delete') {
+           $op_items['/' . $matches[4]]['action'] = VERSIONCONTROL_ACTION_DELETED;
+        }
       }
       else {
         break;
