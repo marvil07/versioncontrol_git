@@ -444,10 +444,27 @@ function _versioncontrol_git_get_source_item_helper($repository, $revision, $fil
  * @param string $filename the revision of the current item we shall get it's source from
  * @return array $source_items array for use in an $operation. 
  */
-function _versioncontrol_git_get_source_item($repository, $filename, $parents, $branches) {
+function _versioncontrol_git_get_source_item($repository, $filename, $parents, $branches, $commit_rev) {
   $ret = array();
-  foreach ($parents as $rev) {
-    $ret[] = _versioncontrol_git_get_source_item_helper($repository, $rev, $filename, $branches);
+  if (count($parents) == 1) {
+      $filenameg = substr($filename, 1);
+      $exec =  "git rev-list -n 1 " . $commit_rev . "^ -- $filenameg";
+      $logs = _versioncontrol_git_log_exec($exec, $temp_file); // Query tags.
+      $next = is_array($logs) ? 'next' : 'fgets';
+      $revision = $next($logs);
+      $ret = array(
+        array(
+          'path' => $filename,
+          'type' => VERSIONCONTROL_ITEM_FILE,
+          'revision' => $revision
+        )
+      );
+  }
+  else
+  {
+    foreach ($parents as $rev) {  
+      $ret[] = _versioncontrol_git_get_source_item_helper($repository, $rev, $filename, $branches);
+    }
   }
   return $ret;
 }
@@ -602,7 +619,7 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, $branches_pe
     if ($merge) {
       foreach($op_items as $path => $item) {
         if($item['action'] != VERSIONCONTROL_ACTION_ADDED) {
-          $op_items[$path]['source_items'] = _versioncontrol_git_get_source_item($repository, $path, $parents, $branches_per_commit[$revision]); 
+          $op_items[$path]['source_items'] = _versioncontrol_git_get_source_item($repository, $path, $parents, $branches_per_commit[$revision], $revision); 
         }
       }
     }
