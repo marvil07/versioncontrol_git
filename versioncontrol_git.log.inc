@@ -148,7 +148,7 @@ function _versioncontrol_git_log_exec($command, &$temp_file) {
  * @return array List of branches.
  */
 function _versioncontrol_git_log_get_branches() {
-  $logs = _versioncontrol_git_log_exec('git branch -l', $temp_file); // Query branches.
+  $logs = _versioncontrol_git_log_exec('git show-ref --heads', $temp_file); // Query branches.
   $branches = _versioncontrol_git_log_parse_branches($logs); // Parse output.
   if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
     fclose($logs);
@@ -167,9 +167,7 @@ function _versioncontrol_git_log_parse_branches(&$logs) {
   $next = is_array($logs) ? 'next' : 'fgets';
   $branches = array();
   while (($line = $next($logs)) !== FALSE) {
-    if (preg_match('/([^\s]+)$/', $line, $matches)) { // Remove whitespace and ensure that the active module symbol '*' doesn't get included.
-      $branches[] = $matches[1];
-    }
+    $branches[] = substr(trim($line), 52);
   }
   return $branches;
 }
