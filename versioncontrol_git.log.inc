@@ -176,7 +176,7 @@ function _versioncontrol_git_log_parse_branches(&$logs) {
  * Get tags from Git using 'tag -l' command.
  */
 function _versioncontrol_git_log_get_tags() {
-  $logs = _versioncontrol_git_log_exec('git tag -l', $temp_file); // Query tags.
+  $logs = _versioncontrol_git_log_exec('git show-ref --tags', $temp_file); // Query tags.
   $tags = _versioncontrol_git_log_parse_tags($logs); // Parse output.
   if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
     fclose($logs);
@@ -193,12 +193,9 @@ function _versioncontrol_git_log_parse_tags(&$logs) {
   // got an array and navigate it via next(). If we stored the log in a
   // temporary file, $logs is a file handle that we need to fgets() instead.
   $next = is_array($logs) ? 'next' : 'fgets';
-
   $tags = array();
-  while (($line = $next($logs)) !== FALSE) { // TODO Possible parse message associated with tag.
-    if (preg_match('/([^\s]+)$/', $line, $matches)) { // Remove whitespace.
-      $tags[] = $matches[1];
-    }
+  while (($line = $next($logs)) !== FALSE) {
+    $tags[] = $branches[] = substr(trim($line), 51);
   }
   return $tags;
 }
