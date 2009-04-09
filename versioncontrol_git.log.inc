@@ -109,7 +109,9 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   // Deleting tags is *not* supported. Read the manual if you want to know why...
   // Check for new tags.
   $new_tags = array_diff($tags, $existing_tags);
-  _versioncontrol_git_process_tags($repository, $new_tags);
+  if (count($new_tags) > 1) {
+    _versioncontrol_git_process_tags($repository, $new_tags);
+  }
 
   // Update repository updated field. Displayed on administration interface for documentation purposes.
   $repository['git_specific']['updated'] = time();
@@ -176,6 +178,7 @@ function _versioncontrol_git_log_parse_branches(&$logs) {
  * Get tags from Git using 'tag -l' command.
  */
 function _versioncontrol_git_log_get_tags() {
+  //TODO: incorporate a --dereference and parse better, saves one git call for tags
   $logs = _versioncontrol_git_log_exec('git show-ref --tags', $temp_file); // Query tags.
   $tags = _versioncontrol_git_log_parse_tags($logs); // Parse output.
   if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
@@ -207,14 +210,32 @@ function _versioncontrol_git_log_parse_tags(&$logs) {
  * @param $logs The output of git show
  * @return array An $operation array which contains the info for the tag.
  */
-function _versioncontrol_git_log_parse_tag_info($repository, $tag_name, &$logs) {
+function _versioncontrol_git_log_parse_tag_info($repository, &$logs, $tag_commits) {
   $matches = array();
   $next = is_array($logs) ? 'next' : 'fgets';
-  $line = next($logs); // Check the first line for an un-annotated tag
-  if (trim($line) == 'ENDOFGITTAGOUTPUTMESAGEHERE') {
+  $line = $next($logs); // Get op type
+  if ($line === FALSE) {
+    return FALSE;
+  }
+  if ($line == 'commit') {
     //let's get the author and the date from the tagged commit, better than nothing.
-    $line = next($logs); // Get the tagged commit
-    $tagged_commit = trim($line);
+    $tagged_commit = $next($logs); // Get the tagged commit
+    $tag_name = $next($logs); // Get the name of the tag
+    $next($logs); // Skip these two lines
+    $next($logs);
+    // Get the tag/commit message
+    $message = '';
+    $i = 0;
+    while (($line = $next($logs)) !== FALSE) {
+      if ($line == 'ENDOFGITTAGOUTPUTMESAGEHERE') {
+        break;
+      }
+      if ($i == 1) {
+        $message .= "\n";
+      }
+      $message .= $line ."\n";
+      $i++;
+    }
     $constraints = array(
       'vcs' => array('git'),
       'repo_ids' => array($repository['repo_id']),
@@ -228,7 +249,7 @@ function _versioncontrol_git_log_parse_tag_info($repository, $tag_name, &$logs) 
       'repository' => $repository,
       'date' => $op['date']+1, // We want to be displayed *after* the tagged commit.
       'username' => $op['username'],
-      'message' => "Non-Annotated tag of '$tag_name'\nAttention, tagger and date are guessed, please use 'git tag -a' the next time you tag.",
+      'message' => $message,
       'revision' => $tagged_commit,
       'labels' => array(
         0 => array(
@@ -239,28 +260,24 @@ function _versioncontrol_git_log_parse_tag_info($repository, $tag_name, &$logs) 
       )
     );
   }
-  $line = next($logs); // Get the tagger
-  preg_match('/^Tagger: (.+)$/', $line, $matches);
-  $tagger = trim($matches[1]);
-  $line = next($logs); // Get date
-  preg_match('/^Date: (.+)$/', $line, $matches);
-  $date = strtotime($matches[1]);
-  $line = next($logs); // Empty line
+  $line = $next($logs); // Skip op sha1
+  $tag_name = $next($logs); // Get tag name
+  $tagger = $next($logs); // Get tagger
+  $date = strtotime($next($logs)); // Get date
   // Get the tag message
   $message = '';
   $i = 0;
   while (($line = $next($logs)) !== FALSE) {
-    if (trim($line) == 'ENDOFGITTAGOUTPUTMESAGEHERE') {
+    if ($line == 'ENDOFGITTAGOUTPUTMESAGEHERE') {
       break;
     }
     if ($i == 1) {
       $message .= "\n";
     }
-    $message .= trim($line) ."\n";
+    $message .= $line ."\n";
     $i++;
   }
-  $line = next($logs); // Get the tagged commit
-  $tagged_commit = trim($line);
+  $tagged_commit = $tag_commits[$tag_name];
   // By now, we're done with the parsing, construct the op array
   return array (
     'type' => VERSIONCONTROL_OPERATION_TAG,
@@ -286,14 +303,42 @@ function _versioncontrol_git_log_parse_tag_info($repository, $tag_name, &$logs) 
  * @param string $tag The name of the tag.
  * @return An $operation array which contains the info for the tag.
  */
-function _versioncontrol_git_get_tag_operation($repository, $tag) {
-  $logs = _versioncontrol_git_log_exec("git show $tag --pretty=format:\"ENDOFGITTAGOUTPUTMESAGEHERE%n%H\" --", $temp_file); // Query tags.
-  $tag_op = _versioncontrol_git_log_parse_tag_info($repository, $tag, $logs); // Parse output.
+function _versioncontrol_git_get_tag_operation($repository, $tags) {
+  $next = is_array($logs) ? 'next' : 'fgets';
+  $tag_ops = array();
+  $tag_string = '';
+  if (empty($tags)) {
+    return array();
+  }
+  foreach ($tags as $tag) {
+    $tag_string .= "refs/tags/$tag ";
+  }
+  $format = "%(objecttype)\n%(objectname)\n%(refname:short)\n%(taggername) %(taggeremail)\n%(taggerdate)\n%(contents)\nENDOFGITTAGOUTPUTMESAGEHERE";
+  $exec = "git for-each-ref --format=\"$format\" $tag_string";
+  $logs_tag_msg = _versioncontrol_git_log_exec($exec, $temp_file);
+  $exec = "git show-ref -d $tag_string";
+  $logs_tag_commits = _versioncontrol_git_log_exec($exec, $temp_file);
+  $tag_commits = array();
+  foreach ($logs_tag_commits as $line) {
+    if (substr($line, -3,3) == '^{}') {
+      $commit = substr($line, 0, 40);
+      $tag = substr($line, 41);
+      $tag = substr(substr($line, 41, strlen($tag) -3), 10);
+      $tag_commits[$tag] = $commit;
+    }
+  }
+  do
+  {
+    $ret = _versioncontrol_git_log_parse_tag_info($repository, $logs_tag_msg, $tag_commits);
+    if ($ret !== FALSE) {
+      $tag_ops[] = $ret;
+    }
+  } while($ret !== FALSE);
   if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
     fclose($logs);
     unlink($temp_file);
   }
-  return $tag_op;
+  return $tag_ops;
 }
 
 /**
@@ -302,8 +347,8 @@ function _versioncontrol_git_get_tag_operation($repository, $tag) {
  * @param array $new_tags An array of strings for all new tags which shall be processed
  */
 function _versioncontrol_git_process_tags($repository, $new_tags) {
-  foreach ($new_tags as $tag) {
-    $tag_op = _versioncontrol_git_get_tag_operation($repository, $tag);
+  $tag_ops = _versioncontrol_git_get_tag_operation($repository, $new_tags);
+  foreach ($tag_ops as $tag_op) {
     $op_items = array();
     versioncontrol_insert_operation($tag_op, $op_items);
     $constraints = array(
@@ -312,10 +357,10 @@ function _versioncontrol_git_process_tags($repository, $new_tags) {
       'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
       'revisions' => array($tag_op['revision'])
     );
-    $tag_commit = versioncontrol_get_operations($constraints);
-    foreach ($tag_commit as $vc_op_id => $tag_commit_op) {
+    $tag_commits = versioncontrol_get_operations($constraints);
+    foreach ($tag_commits as $vc_op_id => $tag_commit_op) {
       $tag_commit_op['labels'][] = array(
-        'name' => $tag,
+        'name' => $tag_op['labels'][0]['name'],
         'action' => VERSIONCONTROL_ACTION_MODIFIED,
         'type' => VERSIONCONTROL_OPERATION_TAG
       );
