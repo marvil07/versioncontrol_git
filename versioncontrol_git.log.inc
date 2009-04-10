@@ -73,8 +73,9 @@ function _versioncontrol_git_log_update_repository(&$repository) {
     // Generate either '[branch]' or '[hash]..[branch]' as range specification for git log.
     $range = $latest_commit ? ($latest_commit .'..') : '';
     $range .= $branch_name;
-    $ranges[$branch_name] = $range;
+    $ranges[$branch_name] = escapeshellarg($range);
     $commits_in_branch = _versioncontrol_git_log_get_commits_in_branch($repository, $range);
+    $i = 0;
     foreach ($commits_in_branch as $commit) {
       if (!isset($branches_per_commit[$commit]) || !is_array($branches_per_commit[$commit])) {
         $branches_per_commit[$commit] = array($label);
@@ -82,6 +83,13 @@ function _versioncontrol_git_log_update_repository(&$repository) {
       else
       {
         $branches_per_commit[$commit][] = $label;
+      }
+      $i++;
+      if ($i == 20) {
+        $range = $range = $latest_commit ? ($latest_commit .'..') : '';
+        $range .= $commit;
+        $ranges[$branch_name] = escapeshellarg($range);
+        break;
       }
     }
   }
@@ -393,7 +401,7 @@ function _versioncontrol_git_process_commits($repository, $range, $branches_per_
  * @return array An array of strings with all commit id's in it
  */
 function _versioncontrol_git_log_get_commits_in_branch($repository, $range) {
-  $logs = _versioncontrol_git_log_exec("git rev-list $range --", $temp_file); // Query tags.
+  $logs = _versioncontrol_git_log_exec("git rev-list $range --reverse 	--", $temp_file); // Query tags.
   $next = is_array($logs) ? 'next' : 'fgets';
   $commits = array();
   while (($line = $next($logs)) !== FALSE) {
@@ -485,6 +493,7 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, $branches_pe
   $next = is_array($logs) ? 'next' : 'fgets';
   $root_path = $repository['root'];
   $line = TRUE;
+  static $j = 0;
   $line = $next($logs); // Get Revision
   while ($line !== FALSE) {
     $merge = FALSE;
@@ -646,5 +655,7 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, $branches_pe
     // Get the branches affected by the commit
     $op['labels'] = $branches_per_commit[$revision];
     versioncontrol_insert_operation($op, $op_items);
+    $j++;
   } // Loop to the next revision.
+  echo "call: $j times";
 }
