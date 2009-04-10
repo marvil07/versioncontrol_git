@@ -54,18 +54,21 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   );
   $branches_per_commit = array();
   $existing_revs = array();
+  $cached = _versioncontrol_git_get_cache($repository, $existing_revs);
   // Get the list of current branches from Git.
   // Generate the range per branch with which git shall be called.
   foreach ($branches as $branch_name => $label) {
-    $constraints['branches'] = array($branch_name);
-    $latest_commit_date = 0;
-    $commit_op = versioncontrol_get_operations($constraints);
-    $latest_commit = FALSE;
-    foreach ($commit_op as $vc_op_id => $c_op) {
-      if ($latest_commit_date < $c_op['date']) {
-        $latest_commit = $c_op['revision'];
-        $latest_commit_date = $c_op['date'];
-        $existing_revs[$branch_name][$latest_commit] = TRUE;
+    if (!$cached) {
+      $constraints['branches'] = array($branch_name);
+      $latest_commit_date = 0;
+      $commit_op = versioncontrol_get_operations($constraints);
+      $latest_commit = FALSE;
+      foreach ($commit_op as $vc_op_id => $c_op) {
+        if ($latest_commit_date < $c_op['date']) {
+          $latest_commit = $c_op['revision'];
+          $latest_commit_date = $c_op['date'];
+          $existing_revs[$branch_name][$latest_commit] = TRUE;
+        }
       }
     }
     // No way to free the damned mysql result!!
@@ -116,8 +119,54 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   db_query('UPDATE {versioncontrol_git_repositories}
             SET updated = %d WHERE repo_id = %d',
             $repository['git_specific']['updated'], $repository['repo_id']);
+  _versioncontrol_git_write_cache($repository, $existing_revs);
   return TRUE;
 }
+
+/**
+ * Writes our existing_revs array to a file.
+ */
+function _versioncontrol_git_write_cache(&$repository, &$existing_revs) {
+  $file = "<?php
+  
+  " . '$existing_revs_bla = ';
+  $file .= var_export($existing_revs, TRUE);
+  $path = '';
+  if (!file_exists($repository['git_specific']['cache_path'])) {
+    $key = sha1(mt_rand() + mt_rand());
+    $path = file_directory_temp();
+    file_check_directory($path, 3);
+    $path .= '/versioncontrol_git_cache_' . $key . '.php';
+    $repository['git_specific']['cache_path'] = $path;
+    db_query('UPDATE {versioncontrol_git_repositories}
+            SET cache_path = "%s" WHERE repo_id = %d',
+    $repository['git_specific']['cache_path'], $repository['repo_id']);
+  }
+  $path = $repository['git_specific']['cache_path'];
+  // Lock the file, as we may else have concurrent writes to the file, which would be *very* bad.
+  $handle = fopen($path, "w");
+  fclose($handle);
+  file_put_contents($path, $file, LOCK_EX);
+}
+
+/**
+ * 
+ */
+function _versioncontrol_git_get_cache($repository, &$existing_revs) {
+  $path = $repository['git_specific']['cache_path'];
+  if(file_exists($path)) {
+    include $path;
+    $existing_revs = $existing_revs_bla;
+    unset($existing_revs_bla);
+    drupal_set_message("bla");
+  }
+  else {
+    $existing_revs = array();
+    return FALSE;
+  }
+  return TRUE;
+}
+
 /**
  * Execute a Git command using the root context and the command to be executed.
  * 
@@ -126,7 +175,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
  * @return mixed Logged output from the command in either array of file pointer form.
  */
 function _versioncontrol_git_log_exec($command, &$temp_file) {
-  watchdog('special', $command);
+  //watchdog('special', $command);
   /*if (variable_get('versioncontrol_git_log_use_file', 1)) {
     $temp_dir = variable_get('file_directory_temp', (PHP_OS == 'WINNT' ? 'c:\\windows\\temp' : '/tmp'));
     $temp_file = $temp_dir .'/git-'. rand();
@@ -650,7 +699,7 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, &$branches_p
     $i++;
   }
   $line = $next($logs); // Points to either the next entry or the first items modified or to the file actions
-  //Get the items
+  // Get the items
   $op_items = _versioncontrol_git_parse_items($repository, $logs, $line, $revision,
   $branches_per_commit, $parents);
 
