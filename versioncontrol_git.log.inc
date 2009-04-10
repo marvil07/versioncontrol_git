@@ -52,54 +52,44 @@ function _versioncontrol_git_log_update_repository(&$repository) {
     'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
     'branches' => array() // used in the loop
   );
-  $options = array(
-    'query_type' => 'range',
-    'count' => 1,
-    'from' => 0
-  );
-  $ranges = array();
   $branches_per_commit = array();
+  $existing_revs = array();
   // Get the list of current branches from Git.
   // Generate the range per branch with which git shall be called.
   foreach ($branches as $branch_name => $label) {
     $constraints['branches'] = array($branch_name);
-    $commit_op = versioncontrol_get_operations($constraints, $options);
+    $latest_commit_date = 0;
+    $commit_op = versioncontrol_get_operations($constraints);
     $latest_commit = FALSE;
-    if (!empty($commit_op)) {
-      foreach ($commit_op as $vc_op_id => $c_op) {
+    foreach ($commit_op as $vc_op_id => $c_op) {
+      if ($latest_commit_date < $c_op['date']) {
         $latest_commit = $c_op['revision'];
+        $latest_commit_date = $c_op['date'];
+        $existing_revs[$branch_name][$latest_commit] = TRUE;
       }
     }
-    // Generate either '[branch]' or '[hash]..[branch]' as range specification for git log.
-    $range = $latest_commit ? ($latest_commit .'..') : '';
-    $range .= $branch_name;
-    $ranges[$branch_name] = escapeshellarg($range);
-    $commits_in_branch = _versioncontrol_git_log_get_commits_in_branch($repository, $range);
-    $i = 0;
-    foreach ($commits_in_branch as $commit) {
-      if (!isset($branches_per_commit[$commit]) || !is_array($branches_per_commit[$commit])) {
-        $branches_per_commit[$commit] = array($label);
+    // No way to free the damned mysql result!!
+    unset($commit_op);
+    
+    $commits_in_branch = _versioncontrol_git_log_get_commits_in_branch($repository, escapeshellarg($branch_name));
+    foreach ($commits_in_branch as $i => $commit) {
+      if (!isset($existing_revs[$branch_name][$commit])) {
+        if (!isset($branches_per_commit[$commit]) || !is_array($branches_per_commit[$commit])) {
+          $branches_per_commit[$commit] = array($label);
+        }
+        else
+        {
+          $branches_per_commit[$commit][] = $label;
+        }
       }
-      else
-      {
-        $branches_per_commit[$commit][] = $label;
-      }
-      $i++;
-      if ($i == 20) {
-        $range = $range = $latest_commit ? ($latest_commit .'..') : '';
-        $range .= $commit;
-        $ranges[$branch_name] = escapeshellarg($range);
-        break;
-      }
-    }
+    }    
   }
   // This uses an extra loop on purpose!
   // Process all commits on a per-branch base.
-  foreach ($branches as $branch_name => $label) {
+  foreach ($branches_per_commit as $revision => $branch) {
     // Update commits from Git.
-    _versioncontrol_git_process_commits($repository, $ranges[$branch_name], $branches_per_commit);
+    _versioncontrol_git_process_commits($repository, $revision, $branches_per_commit);
   }
-  
   // Check tags.
   $tags = _versioncontrol_git_log_get_tags(); //Now we have the current list of tags as array of strings.
   $constraints = array(
@@ -126,6 +116,8 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   db_query('UPDATE {versioncontrol_git_repositories}
             SET updated = %d WHERE repo_id = %d',
             $repository['git_specific']['updated'], $repository['repo_id']);
+  echo "done\n";
+        exit;
   return TRUE;
 }
 /**
@@ -321,7 +313,9 @@ function _versioncontrol_git_get_tag_operation($repository, $tags) {
   foreach ($tags as $tag) {
     $tag_string .= "refs/tags/$tag ";
   }
+  $tag_string = escapeshellarg($tag_string);
   $format = "%(objecttype)\n%(objectname)\n%(refname:short)\n%(taggername) %(taggeremail)\n%(taggerdate)\n%(contents)\nENDOFGITTAGOUTPUTMESAGEHERE";
+  $format = escapeshellarg($format);
   $exec = "git for-each-ref --format=\"$format\" $tag_string";
   $logs_tag_msg = _versioncontrol_git_log_exec($exec, $temp_file);
   $exec = "git show-ref -d $tag_string";
@@ -383,14 +377,12 @@ function _versioncontrol_git_process_tags($repository, $new_tags) {
  * @param string $range the computed range for the branch we check
  * @param array $branches_per_commit An array of all commits we will encounter with a list of branches they are in.
  */
-function _versioncontrol_git_process_commits($repository, $range, $branches_per_commit) {
-  $command = "git log $range --numstat --summary --pretty=format:\"%H%n%P%n%aN <%ae>%n%ct%n%s%n%bENDOFOUTPUTGITMESSAGEHERE\" --reverse --";
-  $logs = _versioncontrol_git_log_exec($command, $temp_file);
+function _versioncontrol_git_process_commits($repository, $revision, &$branches_per_commit) {
+  $rev_shell = escapeshellarg($revision);
+  $command = "git log $rev_shell --numstat --summary --pretty=format:\"%H%n%P%n%aN <%ae>%n%ct%n%s%n%bENDOFOUTPUTGITMESSAGEHERE\" -n 1 --";
+  $logs = popen($command, 'r');
   _versioncontrol_git_log_parse_commits($repository, $logs, $branches_per_commit); // Parse the info from the raw output.
-  if (variable_get('versioncontrol_git_log_use_file', 1)) {
-    fclose($logs);
-    unlink($temp_file);
-  }
+  pclose($logs);
 }
 
 /**
@@ -401,7 +393,7 @@ function _versioncontrol_git_process_commits($repository, $range, $branches_per_
  * @return array An array of strings with all commit id's in it
  */
 function _versioncontrol_git_log_get_commits_in_branch($repository, $range) {
-  $logs = _versioncontrol_git_log_exec("git rev-list $range --reverse 	--", $temp_file); // Query tags.
+  $logs = _versioncontrol_git_log_exec("git rev-list $range --reverse --", $temp_file); // Query tags.
   $next = is_array($logs) ? 'next' : 'fgets';
   $commits = array();
   while (($line = $next($logs)) !== FALSE) {
@@ -456,6 +448,8 @@ function _versioncontrol_git_get_source_item($repository, $filename, $parents, $
   $ret = array();
   if (count($parents) == 1) {
       $filenameg = substr($filename, 1);
+      $filenameg = escapeshellarg($filenameg);
+      $commit_rev = escapeshellarg($commit_rev);
       $exec =  "git rev-list -n 1 " . $commit_rev . "^ -- $filenameg";
       $logs = _versioncontrol_git_log_exec($exec, $temp_file); // Query tags.
       $next = is_array($logs) ? 'next' : 'fgets';
@@ -477,6 +471,132 @@ function _versioncontrol_git_get_source_item($repository, $filename, $parents, $
   return $ret;
 }
 
+
+/**
+ * fegts wrapper to not break existing behauvior when I omitted trim() for the arrays where iT's unneeded.
+ * 
+ */
+function fgets_git($logs) {
+  $line = fgets($logs);
+  if ($line === FALSE) {
+    return FALSE;
+  }
+  return $line;
+}
+
+function _versioncontrol_git_insert_commit($repository, $date, $username, $message, $revision, $branches, $op_items) {
+  $op = array(
+    'type' => VERSIONCONTROL_OPERATION_COMMIT,
+    'repository' => $repository,
+    'date' => $date,
+    'username' => $username,//filled later
+    'message' => $message, //filled later
+    'revision' =>$revision, //filled later
+    'labels' => $branches
+  );
+  versioncontrol_insert_operation($op, $op_items);
+}
+
+function _versioncontrol_git_parse_items($repository, &$logs, &$line, $revision, &$branches_per_commit, $parents) {
+  $next = 'fgets_git';
+  $op_items = array();
+  $read = FALSE;
+
+  // Read file line revisions.
+  do {
+    if (preg_match('/^(\S+)'."\t".'(\S+)'."\t".'(.+)$/', $line, $matches)) { // Begins with num lines added and matches expression.
+      $read = TRUE;
+      $path = '/' . $matches[3];
+      $op_items[$path] = array(
+          'type' => VERSIONCONTROL_ITEM_FILE,
+          'path' => $path,
+          'source_items' => array(),//filled later
+          'action' => $merge ? VERSIONCONTROL_ACTION_MERGED : VERSIONCONTROL_ACTION_MODIFIED,
+          'revision' => $revision
+      );
+      if (is_numeric($matches[1] && is_numeric($matches[2]))) {
+        $op_items[$path]['line_changes'] = array(
+            'added' => $matches[1],
+            'removed' => $matches[2]
+        );
+      }
+    }
+    else {
+      break;
+    }
+  } while (($line = $next($logs)) !== FALSE);
+  // Read file actions.
+  do {
+    if (preg_match('/^ (\S+) (\S+) (\S+) (.+)$/', $line, $matches)) { // Ensure that same file, they should be in same order.
+      $read = TRUE;
+      // We also can get 'mode' here if someone changes the file permissions.
+      if ($matches[1] == 'create') {
+        $op_items['/' . $matches[4]]['action'] = VERSIONCONTROL_ACTION_ADDED;
+      }
+      else if ($matches[1] == 'delete') {
+        $op_items['/' . $matches[4]]['action'] = VERSIONCONTROL_ACTION_DELETED;
+      }
+    }
+    else {
+      break;
+    }
+  }
+  while (($line = $next($logs)) !== FALSE);
+
+  //This is an inconsistency in git log output...
+  if ($read) {
+    $line = $next($logs);
+  }
+  foreach($op_items as $path => $item) {
+    if($item['action'] != VERSIONCONTROL_ACTION_ADDED) {
+      $op_items[$path]['source_items'] = _versioncontrol_git_get_source_item($repository, $path, $parents, $branches_per_commit[$revision], $revision);
+    }
+  }
+  return $op_items;
+}
+
+function _versioncontrol_git_check_already_parsed_commits($repository, $revision, &$branches_per_commit, &$line, &$logs) {
+  $next = 'fgets_git';
+  $constraints = array(
+      'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
+      'revisions' => array($revision),
+      'vcs' => array('git'),
+      'repo_ids' => array($repository['repo_id'])
+  );
+  $same_rev_commit = versioncontrol_get_operations($constraints);
+  $adjusted_commit = FALSE;
+  foreach ($same_rev_commit as $vc_op_id => $rev_commit) {
+    echo "shit\n";
+    exit;
+    // We already have a commit with this revision recorded, so use a faster parser then.
+    $adjusted_commit = TRUE;
+    $labels = array();
+    foreach ( $rev_commit['labels'] as $label) {
+      if ($label['type'] == VERSIONCONTROL_OPERATION_TAG) {
+        $labels[] = $label;
+      }
+    }
+    $labels = array_merge($labels, $branches_per_commit[$revision]);
+    versioncontrol_update_operation_labels($rev_commit, $labels);
+    $line = $next($logs); // Get $parents
+    $line = $next($logs); // Get Author
+    $line = $next($logs); // Get Date as Timestamp
+    // Pretend message parsing
+    while (($line = $next($logs)) !== FALSE) {
+      if (trim($line) == 'ENDOFOUTPUTGITMESSAGEHERE') {
+        break;
+      }
+    }
+    $line = $next($logs);
+    // Skip everything --summary or --numstat related output
+    while (!(preg_match("/^([a-f0-9]{40})$/", trim($line))) && $line !== FALSE) {
+      $line = $next($logs);
+    }
+    //$branches_per_commit[$revision] = TRUE;
+  }
+  return $adjusted_commit;
+}
+
 /**
  * Parse the output of 'git log' and insert commits based on it's data.
  *
@@ -486,176 +606,67 @@ function _versioncontrol_git_get_source_item($repository, $filename, $parents, $
  * @param array $branches_per_commit An array which has all branches for all commits in it.
  * 	It is used to construct $operation['labels'].
  */
-function _versioncontrol_git_log_parse_commits($repository, &$logs, $branches_per_commit) {
+function _versioncontrol_git_log_parse_commits($repository, &$logs, &$branches_per_commit) {
   // If the log was retrieved by taking the return value of exec(), we've
   // got an array and navigate it via next(). If we stored the log in a
   // temporary file, $logs is a file handle that we need to fgets() instead.
-  $next = is_array($logs) ? 'next' : 'fgets';
+  echo "start\n";
+  $next = 'fgets_git';
   $root_path = $repository['root'];
   $line = TRUE;
   static $j = 0;
   $line = $next($logs); // Get Revision
-  while ($line !== FALSE) {
-    $merge = FALSE;
-    $op = array(
-      'type' => VERSIONCONTROL_OPERATION_COMMIT,
-      'repository' => $repository,
-      'date' => 0, //filled later
-      'username' => '',//filled later
-      'message' => '', //filled later
-      'revision' => '', //filled later
-      'labels' => array()
-    );
-    // $line already points to the revision
-    $revision = trim($line);
-    $constraints = array(
-      'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
-      'revisions' => array($revision),
-      'vcs' => array('git'),
-      'repo_ids' => array($repository['repo_id'])
-    );
-    $same_rev_commit = versioncontrol_get_operations($constraints);
-    $adjusted_commit = FALSE;
-    foreach ($same_rev_commit as $vc_op_id => $rev_commit) {
-      // We already have a commit with this revision recorded, so use a faster parser then.
-      $adjusted_commit = TRUE;
-      $labels = array();
-      foreach ( $rev_commit['labels'] as $label) {
-        if ($label['type'] == VERSIONCONTROL_OPERATION_TAG) {
-          $labels[] = $label;
-        }
-      }
-      $labels = array_merge($labels, $branches_per_commit[$revision]);
-      versioncontrol_update_operation_labels($rev_commit, $labels);
-      $line = $next($logs); // Get $parents
-      $line = $next($logs); // Get Author
-      $line = $next($logs); // Get Date as Timestamp
-      // Pretend message parsing
-      while (($line = $next($logs)) !== FALSE) {
-        if (trim($line) == 'ENDOFOUTPUTGITMESSAGEHERE') {
-          break;
-        }
-      }
-      $line = $next($logs);
-      // Skip everything --summary or --numstat related output
-      while (!(preg_match("/^([a-f0-9]{40})$/", trim($line))) && $line !== FALSE) {
-        $line = $next($logs);
-      }
-    }
-    // We can't do a continue for the big while in the foreach loop.
-    if ($adjusted_commit) {
-      continue;
-    }
-    
-    $op['revision'] = $revision;
-    $line = $next($logs); // Get $parents
-    $parents = explode(" ", trim($line));
-    if ($parents[0] == '') {
-      $parents = array();
-    }
-    if(isset($parents[1])) {
-      $merge = TRUE;
-    }
-    $line = $next($logs); // Get Author
-    $op['username'] = trim($line);
-    $line = $next($logs); // Get Date as Timestamp
-    $op['date'] = trim($line);
-    // Get revision message.
-    $message = '';
-    $i = 0;
-    while (($line = trim($next($logs))) !== FALSE) {
-      if ($line == 'ENDOFOUTPUTGITMESSAGEHERE') {
-        break;
-      }
-      if ($i == 1) {
-        $message .= "\n";
-      }
-      $message .= $line ."\n";
-      $i++;
-    }
-    $op['message'] = $message;
-    $op_items = array();
-    $read = FALSE;
-    $line = $next($logs); // Points to either the next entry or the first items modified or to the file actions
-    // Read file line revisions.
-    do {
-      if (preg_match('/^(\S+)'."\t".'(\S+)'."\t".'(.+)$/', $line, $matches)) { // Begins with num lines added and matches expression.
-        $read = TRUE;
-        $path = '/' . $matches[3];
-        $op_items[$path] = array(
-          'type' => VERSIONCONTROL_ITEM_FILE,
-          'path' => $path,
-          'source_items' => array(),//filled later
-          'action' => $merge ? VERSIONCONTROL_ACTION_MERGED : VERSIONCONTROL_ACTION_MODIFIED,
-          'revision' => $revision
-        );
-        if (is_numeric($matches[1] && is_numeric($matches[2]))) {
-          $op_items[$path]['line_changes'] = array(
-            'added' => $matches[1],
-            'removed' => $matches[2]
-          );
-        }
-      }
-      else {
-        break;
-      }
-    } while (($line = $next($logs)) !== FALSE);
-    // Read file actions.
-    do {
-      if (preg_match('/^ (\S+) (\S+) (\S+) (.+)$/', $line, $matches)) { // Ensure that same file, they should be in same order.
-        $read = TRUE;
-        // We also can get 'mode' here if someone changes the file permissions.
-        if ($matches[1] == 'create') {
-           $op_items['/' . $matches[4]]['action'] = VERSIONCONTROL_ACTION_ADDED;
-        }
-        else if ($matches[1] == 'delete') {
-           $op_items['/' . $matches[4]]['action'] = VERSIONCONTROL_ACTION_DELETED;
-        }
-      }
-      else {
-        break;
-      }
-    }
-    while (($line = $next($logs)) !== FALSE);
-    
-    //This is an inconsistency in git log output...
-    if ($read) {
-      $line = $next($logs);
-    }
-    // For merges, use our old, secure and slow system. For everything else we can use some hacky sql logic ;)
-    //debug
+  $merge = FALSE;
+  // $line already points to the revision
+  $revision = trim($line);
+  $adjusted_commit = _versioncontrol_git_check_already_parsed_commits($repository, $revision,
+  $branches_per_commit, $line, $logs);
+  if ($adjusted_commit) {
+    return;
+  }
+
+  $line = $next($logs); // Get $parents
+  $parents = explode(" ", trim($line));
+  if ($parents[0] == '') {
+    $parents = array();
+  }
+  if(isset($parents[1])) {
     $merge = TRUE;
-    if ($merge) {
-      foreach($op_items as $path => $item) {
-        if($item['action'] != VERSIONCONTROL_ACTION_ADDED) {
-          $op_items[$path]['source_items'] = _versioncontrol_git_get_source_item($repository, $path, $parents, $branches_per_commit[$revision], $revision); 
-        }
-      }
+  }
+  $line = $next($logs); // Get Author
+  $username = trim($line);
+  $line = $next($logs); // Get Date as Timestamp
+  $date = trim($line);
+  // Get revision message.
+  $message = '';
+  $i = 0;
+  while (($line = trim($next($logs))) !== FALSE) {
+    if ($line == 'ENDOFOUTPUTGITMESSAGEHERE') {
+      break;
     }
-    /*else
-    {
-      $query = "SELECT ir.revision AS revision, ir.item_revision_id, ir.path
-          FROM versioncontrol_source_items si
-          LEFT JOIN versioncontrol_item_revisions ir 
-          ON si.item_revision_id = ir.item_revision_id
-          WHERE si.item_revision_id NOT
-          IN (
-          SELECT source_item_revision_id
-          FROM versioncontrol_source_items
-          )
-          AND si.action != 6
-          ORDER BY ir.item_revision_id DESC";
-      $result = db_query($query);
-      while($si = db_fetch_array($result)) {
-        if (isset($op_items[$si['path']])) {
-          $op_items[$si['path']]['source_items'] = array($si);
-        }
-      }
-    }*/
-    // Get the branches affected by the commit
-    $op['labels'] = $branches_per_commit[$revision];
-    versioncontrol_insert_operation($op, $op_items);
-    $j++;
-  } // Loop to the next revision.
-  echo "call: $j times";
+    if ($i == 1) {
+      $message .= "\n";
+    }
+    $message .= $line ."\n";
+    $i++;
+  }
+  $line = $next($logs); // Points to either the next entry or the first items modified or to the file actions
+  //Get the items
+  $op_items = _versioncontrol_git_parse_items($repository, $logs, $line, $revision,
+  $branches_per_commit, $parents);
+
+  _versioncontrol_git_insert_commit($repository, $date, $username,
+  $message, $revision, $branches_per_commit[$revision], $op_items);
+
+  //$branches_per_commit[$revision] = TRUE;
+  $j++;
+  /*if($j == 100)
+   break;*/
+/*  foreach ($branches_per_commit as $rev => $bool) {
+    if (is_bool($bool))
+      unset ($branches_per_commit[$rev]);
+  }*/
+  echo "call: $j times\n";
+  //var_export($branches_per_commit);
+  //exit;
 }
