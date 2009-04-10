@@ -110,6 +110,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   // Deleting tags is *not* supported. Read the manual if you want to know why...
   // Check for new tags.
   $new_tags = array_diff($tags, $existing_tags);
+  // TODO: why count > 1???
   if (count($new_tags) > 1) {
     _versioncontrol_git_process_tags($repository, $new_tags);
   }
@@ -158,7 +159,6 @@ function _versioncontrol_git_get_cache($repository, &$existing_revs) {
     include $path;
     $existing_revs = $existing_revs_bla;
     unset($existing_revs_bla);
-    drupal_set_message("bla");
   }
   else {
     $existing_revs = array();
@@ -661,11 +661,10 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, &$branches_p
   $merge = FALSE;
   // $line already points to the revision
   $revision = trim($line);
-  foreach ($branches_per_commit[$revision] as $labels) {
-    foreach ($labels as $label) {
-      $existing_revs[$label['name']][$revision] = TRUE;
-    }
+  foreach ($branches_per_commit[$revision] as $label) {
+    $existing_revs[$label['name']][$revision] = TRUE;
   }
+
   $adjusted_commit = _versioncontrol_git_check_already_parsed_commits($repository, 
   $revision, $branches_per_commit, $line, $logs);
   if ($adjusted_commit) {
