@@ -379,7 +379,7 @@ function _versioncontrol_git_process_tags($repository, $new_tags) {
  */
 function _versioncontrol_git_process_commits($repository, $revision, &$branches_per_commit) {
   $rev_shell = escapeshellarg($revision);
-  $command = "git log $rev_shell --numstat --summary --pretty=format:\"%H%n%P%n%aN <%ae>%n%ct%n%s%n%bENDOFOUTPUTGITMESSAGEHERE\" -n 1 --";
+  $command = "git log $rev_shell --numstat --summary --pretty=format:\"%H%n%P%n%aN <%ae>%n%ct%n%s%n%b%nENDOFOUTPUTGITMESSAGEHERE\" -n 1 --";
   $logs = popen($command, 'r');
   _versioncontrol_git_log_parse_commits($repository, $logs, $branches_per_commit); // Parse the info from the raw output.
   pclose($logs);
@@ -476,7 +476,7 @@ function _versioncontrol_git_get_source_item($repository, $filename, $parents, $
  * fegts wrapper to not break existing behauvior when I omitted trim() for the arrays where iT's unneeded.
  * 
  */
-function fgets_git($logs) {
+function fgets_git(&$logs) {
   $line = fgets($logs);
   if ($line === FALSE) {
     return FALSE;
@@ -610,7 +610,6 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, &$branches_p
   // If the log was retrieved by taking the return value of exec(), we've
   // got an array and navigate it via next(). If we stored the log in a
   // temporary file, $logs is a file handle that we need to fgets() instead.
-  echo "start\n";
   $next = 'fgets_git';
   $root_path = $repository['root'];
   $line = TRUE;
@@ -640,7 +639,8 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, &$branches_p
   // Get revision message.
   $message = '';
   $i = 0;
-  while (($line = trim($next($logs))) !== FALSE) {
+  while (($line = $next($logs)) !== FALSE) {
+    $line = trim($line);
     if ($line == 'ENDOFOUTPUTGITMESSAGEHERE') {
       break;
     }
