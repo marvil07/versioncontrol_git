@@ -88,7 +88,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   // Process all commits on a per-branch base.
   foreach ($branches_per_commit as $revision => $branch) {
     // Update commits from Git.
-    _versioncontrol_git_process_commits($repository, $revision, $branches_per_commit);
+    _versioncontrol_git_process_commits($repository, $revision, $branches_per_commit, $existing_revs);
   }
   // Check tags.
   $tags = _versioncontrol_git_log_get_tags(); //Now we have the current list of tags as array of strings.
@@ -116,8 +116,6 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   db_query('UPDATE {versioncontrol_git_repositories}
             SET updated = %d WHERE repo_id = %d',
             $repository['git_specific']['updated'], $repository['repo_id']);
-  echo "done\n";
-        exit;
   return TRUE;
 }
 /**
@@ -377,11 +375,11 @@ function _versioncontrol_git_process_tags($repository, $new_tags) {
  * @param string $range the computed range for the branch we check
  * @param array $branches_per_commit An array of all commits we will encounter with a list of branches they are in.
  */
-function _versioncontrol_git_process_commits($repository, $revision, &$branches_per_commit) {
+function _versioncontrol_git_process_commits($repository, $revision, &$branches_per_commit, &$existing_revs) {
   $rev_shell = escapeshellarg($revision);
   $command = "git log $rev_shell --numstat --summary --pretty=format:\"%H%n%P%n%aN <%ae>%n%ct%n%s%n%b%nENDOFOUTPUTGITMESSAGEHERE\" -n 1 --";
   $logs = popen($command, 'r');
-  _versioncontrol_git_log_parse_commits($repository, $logs, $branches_per_commit); // Parse the info from the raw output.
+  _versioncontrol_git_log_parse_commits($repository, $logs, $branches_per_commit, $existing_revs); // Parse the info from the raw output.
   pclose($logs);
 }
 
@@ -566,8 +564,6 @@ function _versioncontrol_git_check_already_parsed_commits($repository, $revision
   $same_rev_commit = versioncontrol_get_operations($constraints);
   $adjusted_commit = FALSE;
   foreach ($same_rev_commit as $vc_op_id => $rev_commit) {
-    echo "shit\n";
-    exit;
     // We already have a commit with this revision recorded, so use a faster parser then.
     $adjusted_commit = TRUE;
     $labels = array();
@@ -606,20 +602,23 @@ function _versioncontrol_git_check_already_parsed_commits($repository, $revision
  * @param array $branches_per_commit An array which has all branches for all commits in it.
  * 	It is used to construct $operation['labels'].
  */
-function _versioncontrol_git_log_parse_commits($repository, &$logs, &$branches_per_commit) {
+function _versioncontrol_git_log_parse_commits($repository, &$logs, &$branches_per_commit, &$existing_revs) {
   // If the log was retrieved by taking the return value of exec(), we've
   // got an array and navigate it via next(). If we stored the log in a
   // temporary file, $logs is a file handle that we need to fgets() instead.
   $next = 'fgets_git';
   $root_path = $repository['root'];
-  $line = TRUE;
-  static $j = 0;
   $line = $next($logs); // Get Revision
   $merge = FALSE;
   // $line already points to the revision
   $revision = trim($line);
-  $adjusted_commit = _versioncontrol_git_check_already_parsed_commits($repository, $revision,
-  $branches_per_commit, $line, $logs);
+  foreach ($branches_per_commit[$revision] as $labels) {
+    foreach ($labels as $label) {
+      $existing_revs[$label['name']][$revision] = TRUE;
+    }
+  }
+  $adjusted_commit = _versioncontrol_git_check_already_parsed_commits($repository, 
+  $revision, $branches_per_commit, $line, $logs);
   if ($adjusted_commit) {
     return;
   }
@@ -657,16 +656,4 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, &$branches_p
 
   _versioncontrol_git_insert_commit($repository, $date, $username,
   $message, $revision, $branches_per_commit[$revision], $op_items);
-
-  //$branches_per_commit[$revision] = TRUE;
-  $j++;
-  /*if($j == 100)
-   break;*/
-/*  foreach ($branches_per_commit as $rev => $bool) {
-    if (is_bool($bool))
-      unset ($branches_per_commit[$rev]);
-  }*/
-  echo "call: $j times\n";
-  //var_export($branches_per_commit);
-  //exit;
 }
