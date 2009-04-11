@@ -395,7 +395,6 @@ function _versioncontrol_git_process_commits($repository, $revision, &$branches_
   $command = "git log $rev_shell --numstat --summary --pretty=format:\"%H%n%P%n%aN <%ae>%n%ct%n%s%n%b%nENDOFOUTPUTGITMESSAGEHERE\" -n 1 --";
   $logs = _versioncontrol_git_log_exec($command);
   _versioncontrol_git_log_parse_commits($repository, $logs, $branches_per_commit, $existing_revs); // Parse the info from the raw output.
-  pclose($logs);
 }
 
 /**
