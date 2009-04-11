@@ -1,7 +1,7 @@
 $Id: README.txt,v 1.1.4.1 2009/04/07 17:35:32 marvil07 Exp $
 
 Git backend for Version Control API -
-Provides Git commit information and account management as a pluggable backend.
+Provides Git commit information as a pluggable backend.
 
 
 SHORT DESCRIPTION
@@ -23,22 +23,22 @@ http://drupal.org/project/issues/versioncontrol.
 
 INSTALL
 -------
-We need at least versioncontrl-Api version 6.x-1.0-rc1
-PROBLEMS
--------
-Before reporting any problems please make sure you are running git 1.6.2.2 or
-later. git 1.5.x is *not* supported!
+We need at least versioncontrol api version 6.x-1.0-rc1.
+If you've problems with the module, please check that your server is running
+git 1.6.2.2 or later. We don't check against earlier versions of git.
 
 AUTHOR
 ------
-Jimmy Berry ("boombatower", http://drupal.org/user/214218)
+Jimmy Berry ("boombatower", http://drupal.org/user/214218) (orginal version
+for Drupal 5)
+Cornelius Riemenschneider ("CorniI", http://drupal.org/user/136353)
 
-TODO
+ROADMAP
 ------
-add locking and clear locks for repository updates.
-update readme etc.
-release alpha2.
-improve xgit scripts and hooks
+We need to provide git hooks for updating and later for access control.
+Also some cli scripts would be very nice for updating without drupal cron
+system.
+Rewrite versioncontrol_git_update_repository_callback().
 
 CREDITS
 -------
