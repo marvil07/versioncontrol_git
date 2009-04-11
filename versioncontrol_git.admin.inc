@@ -88,6 +88,7 @@ function versioncontrol_git_versioncontrol_alter_repository_list($vcs, $reposito
   }
   $header[] = t('Update method');
   $header[] = t('Last updated');
+  $header[] = t('Locking');
 
   foreach ($rows_by_repo_id as $repo_id => $row) {
     if ($repositories[$repo_id]['git_specific']['update_method'] == VERSIONCONTROL_GIT_UPDATE_XGIT) {
@@ -101,5 +102,8 @@ function versioncontrol_git_versioncontrol_alter_repository_list($vcs, $reposito
     $rows_by_repo_id[$repo_id][] = $repositories[$repo_id]['git_specific']['updated']
       ? format_date($repositories[$repo_id]['git_specific']['updated'], 'small')
       : t('never');
+    $rows_by_repo_id[$repo_id][] = t('Locking (!lock)', array(
+        '!lock' => l(t('Clear lock now'), 'admin/project/versioncontrol-repositories/clearlock/git/'. $repo_id)
+      ));
   }
 }

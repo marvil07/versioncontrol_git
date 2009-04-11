@@ -97,7 +97,12 @@ function versioncontrol_git_versioncontrol_backends() {
  */
 function versioncontrol_git_menu() {
   $items = array();
-
+  $items['admin/project/versioncontrol-repositories/clearlock/git'] = array(
+    'title' => 'Clear lock',
+    'page callback' => 'versioncontrol_git_clearlock_repository_callback',
+    'access arguments' => array('administer version control systems'),
+    'type' => MENU_CALLBACK,
+  );
   $items['admin/project/versioncontrol-repositories/update/git'] = array(
     'title' => 'Fetch log',
     'page callback' => 'versioncontrol_git_update_repository_callback',
@@ -456,6 +461,20 @@ function versioncontrol_git_get_current_item_tag($repository, $item) {
   return $item['git_specific']['selected_op'];
 }
 */
+
+/**
+ * Menu callback for 'admin/project/versioncontrol-repositories/clearlock/git'
+ * (expecting a $repo_id as one more path argument):
+ * Clears the update lock for the specified repository
+ */
+function versioncontrol_git_clearlock_repository_callback($repo_id) {
+  if (is_numeric($repo_id)) {
+    db_query('UPDATE {versioncontrol_git_repositories}
+            SET locked = 0 WHERE repo_id = %d', $repo_id);
+    drupal_set_message(t('Cleared the lock for the repository.'));
+  }
+  drupal_goto('admin/project/versioncontrol-repositories');
+}
 
 /**
  * Menu callback for 'admin/project/versioncontrol-repositories/update/git'
