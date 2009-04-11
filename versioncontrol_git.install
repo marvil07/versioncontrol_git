@@ -37,6 +37,12 @@ function versioncontrol_git_schema() {
         'not null' => TRUE,
         'default' => 0,
         ),
+      'cache_path' => array(
+        'description' => t('Path of the cache file.'),
+        'type' => 'blob',
+        'not null' => FALSE,
+        'default' => '',
+        ),
       ),
     'primary key' => array('repo_id'),
   );
@@ -55,17 +61,9 @@ function versioncontrol_git_install() {
  */
 function versioncontrol_git_uninstall() {
   // Make sure we can access the required functions even from the .install file.
-  include_once(drupal_get_path('module', 'versioncontrol') .'/versioncontrol.module');
+/*  include_once(drupal_get_path('module', 'versioncontrol') .'/versioncontrol.module');
   include_once(drupal_get_path('module', 'versioncontrol_git') .'/versioncontrol_git.module');
-
-  if (db_table_exists('versioncontrol_repositories')) {
-    $result = db_query("SELECT repo_id FROM {versioncontrol_repositories}
-                        WHERE vcs = 'git'");
-    while ($repository = db_fetch_array($result)) {
-      versioncontrol_delete_repository($repository);
-    }
-  }
-
+*/
   drupal_uninstall_schema('versioncontrol_git');
 
   variable_del('versioncontrol_git_log_use_file');

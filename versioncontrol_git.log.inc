@@ -33,7 +33,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   /*$existing_branches = versioncontrol_get_label_list($repository, VERSIONCONTROL_OPERATION_BRANCH);
   // Check for new branches.
   $new_branches = array_diff($branches, $existing_branches);*/
-  $add_branch_label =array(
+  $add_branch_label = array(
         'name' => '', //filled later
         'type' => VERSIONCONTROL_OPERATION_BRANCH,
         'action' => VERSIONCONTROL_ACTION_MODIFIED
@@ -54,11 +54,13 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   );
   $branches_per_commit = array();
   $existing_revs = array();
+  // We cache the array in a temporary file to avoid the huge query when someone checks for new commits. 
   $cached = _versioncontrol_git_get_cache($repository, $existing_revs);
   // Get the list of current branches from Git.
   // Generate the range per branch with which git shall be called.
   foreach ($branches as $branch_name => $label) {
     if (!$cached) {
+      // We get all commits we have in this branch to not process them later.
       $constraints['branches'] = array($branch_name);
       $latest_commit_date = 0;
       $commit_op = versioncontrol_get_operations($constraints);
@@ -132,6 +134,7 @@ function _versioncontrol_git_write_cache(&$repository, &$existing_revs) {
   
   " . '$existing_revs_bla = ';
   $file .= var_export($existing_revs, TRUE);
+  $file .= ';';
   $path = '';
   if (!file_exists($repository['git_specific']['cache_path'])) {
     $key = sha1(mt_rand() + mt_rand());
@@ -140,13 +143,11 @@ function _versioncontrol_git_write_cache(&$repository, &$existing_revs) {
     $path .= '/versioncontrol_git_cache_' . $key . '.php';
     $repository['git_specific']['cache_path'] = $path;
     db_query('UPDATE {versioncontrol_git_repositories}
-            SET cache_path = "%s" WHERE repo_id = %d',
-    $repository['git_specific']['cache_path'], $repository['repo_id']);
+            SET cache_path = \'%s\' WHERE repo_id = %d',
+    serialize($path), $repository['repo_id']);
   }
   $path = $repository['git_specific']['cache_path'];
   // Lock the file, as we may else have concurrent writes to the file, which would be *very* bad.
-  $handle = fopen($path, "w");
-  fclose($handle);
   file_put_contents($path, $file, LOCK_EX);
 }
 
@@ -689,6 +690,9 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, &$branches_p
   while (($line = $next($logs)) !== FALSE) {
     $line = trim($line);
     if ($line == 'ENDOFOUTPUTGITMESSAGEHERE') {
+      if (substr($message, -2) === "\n\n") {
+        $message = substr($message, 0, strlen($message) - 1);
+      }
       break;
     }
     if ($i == 1) {
