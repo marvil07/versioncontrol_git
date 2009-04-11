@@ -23,11 +23,7 @@ http://drupal.org/project/issues/versioncontrol.
 
 INSTALL
 -------
-
-* Please use CVS version of versioncontrolapi
-** because there are some bugs in the versioncontrol API, this fixes some bugs
-* Install as usual, see http://drupal.org/node/70151 for further information.
-
+We need at least versioncontrl-Api version 6.x-1.0-rc1
 PROBLEMS
 -------
 Before reporting any problems please make sure you are running git 1.6.2.2 or
@@ -37,6 +33,12 @@ AUTHOR
 ------
 Jimmy Berry ("boombatower", http://drupal.org/user/214218)
 
+TODO
+------
+add locking and clear locks for repository updates.
+update readme etc.
+release alpha2.
+improve xgit scripts and hooks
 
 CREDITS
 -------
