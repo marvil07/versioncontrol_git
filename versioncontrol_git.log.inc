@@ -132,7 +132,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
 function _versioncontrol_git_write_cache(&$repository, &$existing_revs) {
   $file = "<?php
   
-  " . '$existing_revs_bla = ';
+  " . '$_versioncontrol_git_cache_var = ';
   $file .= var_export($existing_revs, TRUE);
   $file .= ';';
   $path = '';
@@ -158,8 +158,8 @@ function _versioncontrol_git_get_cache($repository, &$existing_revs) {
   $path = $repository['git_specific']['cache_path'];
   if(file_exists($path)) {
     include $path;
-    $existing_revs = $existing_revs_bla;
-    unset($existing_revs_bla);
+    $existing_revs = $_versioncontrol_git_cache_var;
+    unset($_versioncontrol_git_cache_var);
   }
   else {
     $existing_revs = array();
