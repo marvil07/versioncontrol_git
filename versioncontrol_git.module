@@ -165,9 +165,10 @@ function versioncontrol_git_cron() {
  *   compared to and loaded from the database anymore.
  */
 function versioncontrol_git_get_selected_label_from_operation($operation, $target_item) {
-  //TODO: implement tag support here, tags>branch?
-  //just take the first branch, dunno what else we should do here...
-  //jpetso knows neither :P
+  // TODO: implement tag support here, tags>branch?
+  // better not, after looking it again current code is OK.
+  // just take the first branch, dunno what else we should do here...
+  // jpetso knows neither :P
   return $operation['labels'][0];
 }
 
@@ -269,49 +270,6 @@ function versioncontrol_git_get_selected_label_from_other_item($repository, $tar
   
   //can be maybe optimized for speed by using the hints provided
   return _versioncontrol_git_get_branch_intersect($repository, $target_item, $other_item);
-  // If the $other_item is a successor item on a branch, some version control
-  // systems (like CVS) can guarantee that the $target_item, the predecessor,
-  // is always on the same branch. So no need for database queries, yay.
-  /*if (in_array('successor_item', $other_item_tags)) {
-    $label = versioncontrol_get_item_selected_label($repository, $other_item);
-
-    if (isset($label['type']) && $label['type'] == VERSIONCONTROL_OPERATION_BRANCH) {
-      return $label;
-    }
-  }
-  if (in_array('source_item', $other_item_tags)) {
-    $label = versioncontrol_get_item_selected_label($repository, $other_item);
-
-    if (isset($label['type']) && $label['type'] == VERSIONCONTROL_OPERATION_BRANCH) {
-      return $label;
-    }
-  }
-  drupal_set_message('API not implemented: versioncontrol_git_get_selected_label_from_other_item', 'warning');
-  */
-  //return NULL;
-  // Otherwise we might not be able to derive the $target_item's label,
-  // in which case we need to fall back to the database or a VCS invocation.
-  // For example, something like this.
-  /*if (versioncontrol_fetch_item_revision_id($repository, $target_item)) {
-    $constraints = array(
-      'item_revision_id' => array($target_item['item_revision_id']),
-    );
-    $commit_operations = versioncontrol_get_commit_operations($constraints);
-
-    if (!empty($commit_operations)) { // yo, found the associated commit!
-      // Code taken from the CVS backend, which only assigns a single branch
-      // to any given commit operation, so it can just take the first one.
-      $commit_operation = reset($commit_operations); // first (only) element
-      return $commit_operation['labels'][0];
-    }
-  }*/
-
-  // (You can even do more attempts if you want to, like trying to ask
-  // the VCS itself. Or maybe not, depends on your motivation and the
-  // VCS's capabilities.)
-
-  // No label could be retrieved by looking at the other item, sorry.
-  return NULL;
 }
 
 /**
@@ -359,108 +317,6 @@ function versioncontrol_git_is_account_username_valid($repository, &$username) {
   }
   return FALSE;
 }
-
-
-/**
- * Implementation of [versioncontrol_backend]_alter_commits():
- * Add VCS specific repository data into a $commit['[xxx]_specific'] array,
- * and/or unset commits that don't match VCS specific filter constraints.
- * By convention, this function only adds data in this specific element
- * and doesn't modify other parts of the commit array.
- *
- * Version Control API doesn't filter commits by backend before passing them
- * to this function, so make sure you check each $commit['repository']['vcs']
- * property before messing with this specific commit.
- *
- * Also, this function is optional for backend modules to implement. If you
- * don't need custom commit additions or constraints, just don't implement it.
- *
- * @param $commits
- *   The unfiltered commits retrieved by versioncontrol_get_commits(), and
- *   even the '[xxx]_specific' arrays already exist. (If the
- *   VERSIONCONTROL_FLAG_AUTOADD_COMMITS flag has been set by this module,
- *   it may even be filled with values already.)
- * @param $fakevcs_specific_constraints
- *   An array of FakeVCS specific filter constraints which were passed to
- *   versioncontrol_get_commits(). Say, if FakeVCS supported modules like
- *   the CVS ones, the array would maybe contain a 'modules' constraint
- *   for filtering by module.
- */
-/*
-function versioncontrol_git_alter_commits(&$commits, $fakevcs_specific_constraints = array()) {
-  foreach ($commits as $key => $commit) {
-    // Disregard commits from other backends.
-    if ($commit['repository']['vcs'] != 'git') {
-      continue;
-    }
-
-    $additions = array();
-
-    // Get branches.
-    $result = db_query('SELECT branch_id FROM {versioncontrol_git_commit_branches} WHERE vc_op_id = %d', $commit['vc_op_id']);
-    while ($branch = db_fetch_object($result)) {
-      $additions['branch_ids'][] = $branch->branch_id;
-    }
-
-    // Merge the additions into the existing commit array.
-    $commits[$key]['git_specific'] = array_merge($commit['git_specific'], $additions);
-  }
-}
-*/
-
-/**
- * Implementation of [versioncontrol_backend]_get_current_item_branch():
- * Retrieve the current branch that this item is in. If this item was part of
- * the result of versioncontrol_get_commit_actions(), this will probably be
- * the branch that this item was committed to. The main branch ('HEAD' for Git)
- * is also a valid branch and should be expected as return value.
- *
- * @param $repository
- *   The repository that the item is located in.
- * @param $item
- *   The item whose current branch should be retrieved.
- *
- * @return
- *   A string containing the current item branch, or NULL if no branch
- *   is known or applicable.
- */
-
-/*
-function versioncontrol_git_get_current_item_branch($repository, $item) {
-  if (!isset($item['git_specific']['selected_branch_id'])) {
-    return NULL;
-  }
-
-  $branch = versioncontrol_get_branch($item['git_specific']['selected_branch_id']);
-  if (!isset($branch)) {
-    return NULL;
-  }
-  return $branch['branch_name'];
-}*/
-
-/**
- * Implementation of [versioncontrol_backend]_get_current_item_tag():
- * Retrieve the current tag of this item.
- *
- * @param $repository
- *   The repository that the item is located in.
- * @param $item
- *   The item whose current branch should be retrieved.
- *
- * @return
- *   A tag operation array like the return value
- *   of versioncontrol_get_tag_operation(), or NULL if no tag
- *   is known or applicable.
- */
-
-/*
-function versioncontrol_git_get_current_item_tag($repository, $item) {
-  if ($item['git_specific']['selected_op']['type'] != VERSIONCONTROL_OPERATION_TAG) {
-    return NULL;
-  }
-  return $item['git_specific']['selected_op'];
-}
-*/
 
 /**
  * Menu callback for 'admin/project/versioncontrol-repositories/clearlock/git'
@@ -535,89 +391,6 @@ function _versioncontrol_git_update_repository(&$repository) {
   include_once(drupal_get_path('module', 'versioncontrol_git') .'/versioncontrol_git.log.inc');
   return _versioncontrol_git_log_update_repository($repository);
 }
-
-/**
- * Implementation of [versioncontrol_backend]_commit():
- * Manage (insert or delete) additional commit data in the database.
- *
- * @param $op
- *   Either 'insert' when the commit is in the process of being created,
- *   or 'delete' if it will be deleted after this function has been called.
- * @param $commit
- *   A single commit array, like the ones returned
- *   by versioncontrol_get_commits().
- * @param $commit_actions
- *   A structured array containing the exact details of what happened to
- *   each item in this commit. The structure of this array is the same as
- *   the return value of versioncontrol_get_commit_actions().
- */
-
-/*
-function versioncontrol_git_commit($op, $commit, $commit_actions) {
-  switch ($op) {
-    case 'insert':
-      // Insert branches.
-      foreach ($commit['git_specific']['branch_ids'] as $branch) {
-         db_query("INSERT INTO {versioncontrol_git_commit_branches} (vc_op_id, branch_id) VALUES (%d, %d)",
-           $commit['vc_op_id'], $branch);
-      }
-
-      foreach ($commit_actions as $path => $action) {
-        $revision = '';
-
-        // If available, get item type and revision from the contained items.
-        if (isset($action['current item'])) {
-          $type = $action['current item']['type'];
-          $revision = $action['current item']['revision'];
-        }
-        else { // no current item -> file has been deleted
-          $type = VERSIONCONTROL_ITEM_FILE_DELETED;
-          $revision = $action['git_specific']['revision'];
-        }
-
-        $vcgit_item_revision = array(
-          'vc_op_id' => $commit['vc_op_id'],
-          'type' => $type,
-          'path' => $path,
-          'action' => $action['action'],
-          'lines_added' => $action['git_specific']['lines_added'],
-          'lines_removed' => $action['git_specific']['lines_removed'],
-        );
-        drupal_write_record('versioncontrol_git_item_revisions', $vcgit_item_revision);
-        db_query("INSERT INTO {versioncontrol_git_item_source_revisions}
-                  (item_revision_id, source_item_revision_id)
-                  VALUES (%d, %d)",
-          $vcgit_item_revision['item_revision_id'],
-          _versioncontrol_git_get_item_revision_id($action['source items'][0]['path'], $action['source items'][0]['revision']));
-      }
-      break;
-
-    case 'delete':
-      $result = db_query('SELECT ir.item_revision_id, c.revision
-                          FROM {versioncontrol_git_item_revisions} ir
-                           INNER JOIN {versioncontrol_commits} c
-                            ON ir.vc_op_id = c.vc_op_id
-                          WHERE ir.vc_op_id = %d', $commit['vc_op_id']);
-
-      while ($revision = db_fetch_object($result)) {
-        db_query('DELETE FROM {versioncontrol_git_item_tags}
-                  WHERE item_revision_id = %d',
-                  $revision->item_revision_id);
-        db_query('DELETE FROM {versioncontrol_git_item_source_revisions}
-                  WHERE item_revision_id = %d OR source_item_revision_id = %d',
-                  $revision->item_revision_id, $revision->item_revision_id);
-        db_query("DELETE FROM {versioncontrol_git_latest_commits}
-                  WHERE revision = '%s'",
-                  $revision->revision);
-      }
-      db_query('DELETE FROM {versioncontrol_git_item_revisions}
-                WHERE vc_op_id = %d', $commit['vc_op_id']);
-      db_query('DELETE FROM {versioncontrol_git_commit_branches}
-                WHERE vc_op_id = %d', $commit['vc_op_id']);
-      break;
-  }
-}
-*/
 
 /**
  * Implementation of [versioncontrol_backend]_format_revision_identifier():
