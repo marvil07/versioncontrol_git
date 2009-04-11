@@ -1,7 +1,7 @@
-$Id: README.txt,v 1.1 2008/01/26 21:31:44 boombatower Exp $
+$Id: README.txt,v 1.2 2009/04/11 14:38:45 corni Exp $
 
 Git backend for Version Control API -
-Provides Git commit information and account management as a pluggable backend.
+Provides Git commit information as a pluggable backend.
 
 
 SHORT DESCRIPTION
@@ -21,14 +21,27 @@ If you know that the functionality is (or should be) provided by the
 Version Control API (and not by the Git backend), please submit an issue there:
 http://drupal.org/project/issues/versioncontrol.
 
+INSTALL
+-------
+We need at least versioncontrol api version 6.x-1.0-rc1.
+If you've problems with the module, please check that your server is running
+git 1.6.2.2 or later. We don't check against earlier versions of git.
 
 AUTHOR
 ------
-Jimmy Berry ("boombatower", http://drupal.org/user/214218)
+Jimmy Berry ("boombatower", http://drupal.org/user/214218) (orginal version
+for Drupal 5)
+Cornelius Riemenschneider ("CorniI", http://drupal.org/user/136353)
 
+ROADMAP
+------
+We need to provide git hooks for updating and later for access control.
+Also some cli scripts would be very nice for updating without drupal cron
+system.
+Rewrite versioncontrol_git_update_repository_callback().
 
 CREDITS
 -------
 A good amount of code in Version Control / Project Node Integration was taken
-from the CVS bakend module on drupal.org, its author (Jakob Petsovits, among others)
+from the CVS backend module on drupal.org, its author (Jakob Petsovits, among others)
 deserve a lot of credits and may also hold copyright for parts of this module.
