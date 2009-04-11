@@ -18,9 +18,6 @@
  *   failed for whatever reason.
  */
 function _versioncontrol_git_log_update_repository(&$repository) {
-  //TODO: fix the log file or remove it.
-  variable_set('versioncontrol_git_log_use_file', 0);
-  
   $root = escapeshellcmd($repository['root']);
   $chdir_ok = @chdir($root); // Set working directory to root.
   if ($chdir_ok === FALSE) {
@@ -172,23 +169,13 @@ function _versioncontrol_git_get_cache($repository, &$existing_revs) {
  * Execute a Git command using the root context and the command to be executed.
  * 
  * @param string $command Command to execute.
- * @param reference $temp_file Reference to temporaray file.
  * @return mixed Logged output from the command in either array of file pointer form.
  */
-function _versioncontrol_git_log_exec($command, &$temp_file) {
-  //watchdog('special', $command);
-  /*if (variable_get('versioncontrol_git_log_use_file', 1)) {
-    $temp_dir = variable_get('file_directory_temp', (PHP_OS == 'WINNT' ? 'c:\\windows\\temp' : '/tmp'));
-    $temp_file = $temp_dir .'/git-'. rand();
-    exec("$command > $temp_file");
-    $logs = fopen($temp_file, 'r');
-  }
-  else*/ {
-    $logs = array();
-    exec($command, $logs);
-    array_unshift($logs,'');
-    reset($logs); // Reset the array pointer, so that we can use next().
-  }
+function _versioncontrol_git_log_exec($command) {
+  $logs = array();
+  exec($command, $logs);
+  array_unshift($logs, '');
+  reset($logs); // Reset the array pointer, so that we can use next().
   return $logs;
 }
 
@@ -198,12 +185,8 @@ function _versioncontrol_git_log_exec($command, &$temp_file) {
  * @return array List of branches.
  */
 function _versioncontrol_git_log_get_branches() {
-  $logs = _versioncontrol_git_log_exec('git show-ref --heads', $temp_file); // Query branches.
+  $logs = _versioncontrol_git_log_exec('git show-ref --heads'); // Query branches.
   $branches = _versioncontrol_git_log_parse_branches($logs); // Parse output.
-  if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
-    fclose($logs);
-    unlink($temp_file);
-  }
   return $branches;
 }
 
@@ -211,12 +194,8 @@ function _versioncontrol_git_log_get_branches() {
  * Parse the branch list output from Git.
  */
 function _versioncontrol_git_log_parse_branches(&$logs) {
-  // If the log was retrieved by taking the return value of exec(), we've
-  // got an array and navigate it via next(). If we stored the log in a
-  // temporary file, $logs is a file handle that we need to fgets() instead.
-  $next = is_array($logs) ? 'next' : 'fgets';
   $branches = array();
-  while (($line = $next($logs)) !== FALSE) {
+  while (($line = next($logs)) !== FALSE) {
     $branches[] = substr(trim($line), 52);
   }
   return $branches;
@@ -227,12 +206,8 @@ function _versioncontrol_git_log_parse_branches(&$logs) {
  */
 function _versioncontrol_git_log_get_tags() {
   //TODO: incorporate a --dereference and parse better, saves one git call for tags
-  $logs = _versioncontrol_git_log_exec('git show-ref --tags', $temp_file); // Query tags.
+  $logs = _versioncontrol_git_log_exec('git show-ref --tags'); // Query tags.
   $tags = _versioncontrol_git_log_parse_tags($logs); // Parse output.
-  if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
-    fclose($logs);
-    unlink($temp_file);
-  }
   return $tags;
 }
 
@@ -240,12 +215,8 @@ function _versioncontrol_git_log_get_tags() {
  * Parse the tag list output from Git.
  */
 function _versioncontrol_git_log_parse_tags(&$logs) {
-  // If the log was retrieved by taking the return value of exec(), we've
-  // got an array and navigate it via next(). If we stored the log in a
-  // temporary file, $logs is a file handle that we need to fgets() instead.
-  $next = is_array($logs) ? 'next' : 'fgets';
   $tags = array();
-  while (($line = $next($logs)) !== FALSE) {
+  while (($line = next($logs)) !== FALSE) {
     $tags[] = $branches[] = substr(trim($line), 51);
   }
   return $tags;
@@ -260,21 +231,20 @@ function _versioncontrol_git_log_parse_tags(&$logs) {
  */
 function _versioncontrol_git_log_parse_tag_info($repository, &$logs, $tag_commits) {
   $matches = array();
-  $next = is_array($logs) ? 'next' : 'fgets';
-  $line = $next($logs); // Get op type
+  $line = next($logs); // Get op type
   if ($line === FALSE) {
     return FALSE;
   }
   if ($line == 'commit') {
     //let's get the author and the date from the tagged commit, better than nothing.
-    $tagged_commit = $next($logs); // Get the tagged commit
-    $tag_name = $next($logs); // Get the name of the tag
-    $next($logs); // Skip these two lines
-    $next($logs);
+    $tagged_commit = next($logs); // Get the tagged commit
+    $tag_name = next($logs); // Get the name of the tag
+    next($logs); // Skip these two lines
+    next($logs);
     // Get the tag/commit message
     $message = '';
     $i = 0;
-    while (($line = $next($logs)) !== FALSE) {
+    while (($line = next($logs)) !== FALSE) {
       if ($line == 'ENDOFGITTAGOUTPUTMESAGEHERE') {
         break;
       }
@@ -308,14 +278,14 @@ function _versioncontrol_git_log_parse_tag_info($repository, &$logs, $tag_commit
       )
     );
   }
-  $line = $next($logs); // Skip op sha1
-  $tag_name = $next($logs); // Get tag name
-  $tagger = $next($logs); // Get tagger
-  $date = strtotime($next($logs)); // Get date
+  $line = next($logs); // Skip op sha1
+  $tag_name = next($logs); // Get tag name
+  $tagger = next($logs); // Get tagger
+  $date = strtotime(next($logs)); // Get date
   // Get the tag message
   $message = '';
   $i = 0;
-  while (($line = $next($logs)) !== FALSE) {
+  while (($line = next($logs)) !== FALSE) {
     if ($line == 'ENDOFGITTAGOUTPUTMESAGEHERE') {
       break;
     }
@@ -352,7 +322,6 @@ function _versioncontrol_git_log_parse_tag_info($repository, &$logs, $tag_commit
  * @return An $operation array which contains the info for the tag.
  */
 function _versioncontrol_git_get_tag_operation($repository, $tags) {
-  $next = is_array($logs) ? 'next' : 'fgets';
   $tag_ops = array();
   $tag_string = '';
   if (empty($tags)) {
@@ -365,9 +334,9 @@ function _versioncontrol_git_get_tag_operation($repository, $tags) {
   $format = "%(objecttype)\n%(objectname)\n%(refname:short)\n%(taggername) %(taggeremail)\n%(taggerdate)\n%(contents)\nENDOFGITTAGOUTPUTMESAGEHERE";
   $format = escapeshellarg($format);
   $exec = "git for-each-ref --format=\"$format\" $tag_string";
-  $logs_tag_msg = _versioncontrol_git_log_exec($exec, $temp_file);
+  $logs_tag_msg = _versioncontrol_git_log_exec($exec);
   $exec = "git show-ref -d $tag_string";
-  $logs_tag_commits = _versioncontrol_git_log_exec($exec, $temp_file);
+  $logs_tag_commits = _versioncontrol_git_log_exec($exec);
   $tag_commits = array();
   foreach ($logs_tag_commits as $line) {
     if (substr($line, -3,3) == '^{}') {
@@ -384,10 +353,6 @@ function _versioncontrol_git_get_tag_operation($repository, $tags) {
       $tag_ops[] = $ret;
     }
   } while($ret !== FALSE);
-  if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
-    fclose($logs);
-    unlink($temp_file);
-  }
   return $tag_ops;
 }
 
@@ -428,7 +393,7 @@ function _versioncontrol_git_process_tags($repository, $new_tags) {
 function _versioncontrol_git_process_commits($repository, $revision, &$branches_per_commit, &$existing_revs) {
   $rev_shell = escapeshellarg($revision);
   $command = "git log $rev_shell --numstat --summary --pretty=format:\"%H%n%P%n%aN <%ae>%n%ct%n%s%n%b%nENDOFOUTPUTGITMESSAGEHERE\" -n 1 --";
-  $logs = popen($command, 'r');
+  $logs = _versioncontrol_git_log_exec($command);
   _versioncontrol_git_log_parse_commits($repository, $logs, $branches_per_commit, $existing_revs); // Parse the info from the raw output.
   pclose($logs);
 }
@@ -441,15 +406,10 @@ function _versioncontrol_git_process_commits($repository, $revision, &$branches_
  * @return array An array of strings with all commit id's in it
  */
 function _versioncontrol_git_log_get_commits_in_branch($repository, $range) {
-  $logs = _versioncontrol_git_log_exec("git rev-list $range --reverse --", $temp_file); // Query tags.
-  $next = is_array($logs) ? 'next' : 'fgets';
+  $logs = _versioncontrol_git_log_exec("git rev-list $range --reverse --"); // Query tags.
   $commits = array();
-  while (($line = $next($logs)) !== FALSE) {
+  while (($line = next($logs)) !== FALSE) {
     $commits[] = trim($line);
-  }
-  if (variable_get('versioncontrol_git_log_use_file', 1)) { // Close file.
-    fclose($logs);
-    unlink($temp_file);
   }
   return $commits;
 }
@@ -499,9 +459,8 @@ function _versioncontrol_git_get_source_item($repository, $filename, $parents, $
       $filenameg = escapeshellarg($filenameg);
       $commit_rev = escapeshellarg($commit_rev);
       $exec =  "git rev-list -n 1 " . $commit_rev . "^ -- $filenameg";
-      $logs = _versioncontrol_git_log_exec($exec, $temp_file); // Query tags.
-      $next = is_array($logs) ? 'next' : 'fgets';
-      $revision = $next($logs);
+      $logs = _versioncontrol_git_log_exec($exec); // Query tags.
+      $revision = next($logs);
       $ret = array(
         array(
           'path' => $filename,
@@ -546,7 +505,6 @@ function _versioncontrol_git_insert_commit($repository, $date, $username, $messa
 }
 
 function _versioncontrol_git_parse_items($repository, &$logs, &$line, $revision, &$branches_per_commit, $parents) {
-  $next = 'fgets_git';
   $op_items = array();
   $read = FALSE;
 
@@ -572,7 +530,7 @@ function _versioncontrol_git_parse_items($repository, &$logs, &$line, $revision,
     else {
       break;
     }
-  } while (($line = $next($logs)) !== FALSE);
+  } while (($line = next($logs)) !== FALSE);
   // Read file actions.
   do {
     if (preg_match('/^ (\S+) (\S+) (\S+) (.+)$/', $line, $matches)) { // Ensure that same file, they should be in same order.
@@ -589,11 +547,11 @@ function _versioncontrol_git_parse_items($repository, &$logs, &$line, $revision,
       break;
     }
   }
-  while (($line = $next($logs)) !== FALSE);
+  while (($line = next($logs)) !== FALSE);
 
   //This is an inconsistency in git log output...
   if ($read) {
-    $line = $next($logs);
+    $line = next($logs);
   }
   foreach($op_items as $path => $item) {
     if($item['action'] != VERSIONCONTROL_ACTION_ADDED) {
@@ -604,7 +562,6 @@ function _versioncontrol_git_parse_items($repository, &$logs, &$line, $revision,
 }
 
 function _versioncontrol_git_check_already_parsed_commits($repository, $revision, &$branches_per_commit, &$line, &$logs) {
-  $next = 'fgets_git';
   $constraints = array(
       'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
       'revisions' => array($revision),
@@ -624,19 +581,19 @@ function _versioncontrol_git_check_already_parsed_commits($repository, $revision
     }
     $labels = array_merge($labels, $branches_per_commit[$revision]);
     versioncontrol_update_operation_labels($rev_commit, $labels);
-    $line = $next($logs); // Get $parents
-    $line = $next($logs); // Get Author
-    $line = $next($logs); // Get Date as Timestamp
+    $line = next($logs); // Get $parents
+    $line = next($logs); // Get Author
+    $line = next($logs); // Get Date as Timestamp
     // Pretend message parsing
-    while (($line = $next($logs)) !== FALSE) {
+    while (($line = next($logs)) !== FALSE) {
       if (trim($line) == 'ENDOFOUTPUTGITMESSAGEHERE') {
         break;
       }
     }
-    $line = $next($logs);
+    $line = next($logs);
     // Skip everything --summary or --numstat related output
     while (!(preg_match("/^([a-f0-9]{40})$/", trim($line))) && $line !== FALSE) {
-      $line = $next($logs);
+      $line = next($logs);
     }
     //$branches_per_commit[$revision] = TRUE;
   }
@@ -656,9 +613,8 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, &$branches_p
   // If the log was retrieved by taking the return value of exec(), we've
   // got an array and navigate it via next(). If we stored the log in a
   // temporary file, $logs is a file handle that we need to fgets() instead.
-  $next = 'fgets_git';
   $root_path = $repository['root'];
-  $line = $next($logs); // Get Revision
+  $line = next($logs); // Get Revision
   $merge = FALSE;
   // $line already points to the revision
   $revision = trim($line);
@@ -672,7 +628,7 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, &$branches_p
     return;
   }
 
-  $line = $next($logs); // Get $parents
+  $line = next($logs); // Get $parents
   $parents = explode(" ", trim($line));
   if ($parents[0] == '') {
     $parents = array();
@@ -680,14 +636,14 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, &$branches_p
   if(isset($parents[1])) {
     $merge = TRUE;
   }
-  $line = $next($logs); // Get Author
+  $line = next($logs); // Get Author
   $username = trim($line);
-  $line = $next($logs); // Get Date as Timestamp
+  $line = next($logs); // Get Date as Timestamp
   $date = trim($line);
   // Get revision message.
   $message = '';
   $i = 0;
-  while (($line = $next($logs)) !== FALSE) {
+  while (($line = next($logs)) !== FALSE) {
     $line = trim($line);
     if ($line == 'ENDOFOUTPUTGITMESSAGEHERE') {
       if (substr($message, -2) === "\n\n") {
@@ -701,7 +657,7 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, &$branches_p
     $message .= $line ."\n";
     $i++;
   }
-  $line = $next($logs); // Points to either the next entry or the first items modified or to the file actions
+  $line = next($logs); // Points to either the next entry or the first items modified or to the file actions
   // Get the items
   $op_items = _versioncontrol_git_parse_items($repository, $logs, $line, $revision,
   $branches_per_commit, $parents);

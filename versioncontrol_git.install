@@ -60,11 +60,5 @@ function versioncontrol_git_install() {
  * Implementation of hook_uninstall().
  */
 function versioncontrol_git_uninstall() {
-  // Make sure we can access the required functions even from the .install file.
-/*  include_once(drupal_get_path('module', 'versioncontrol') .'/versioncontrol.module');
-  include_once(drupal_get_path('module', 'versioncontrol_git') .'/versioncontrol_git.module');
-*/
   drupal_uninstall_schema('versioncontrol_git');
-
-  variable_del('versioncontrol_git_log_use_file');
 }

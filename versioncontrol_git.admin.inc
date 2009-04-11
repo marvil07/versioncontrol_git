@@ -42,13 +42,6 @@ function versioncontrol_git_repository_admin_form_alter(&$form, $form_state, $fo
       VERSIONCONTROL_GIT_UPDATE_XGIT => t('Use external script to insert data.'),
     ),
   );
-  $form['repository_information']['use_file'] = array(
-  	'#type' => 'checkbox',
-  	'#title' => t('Use log file'),
-  	'#description' => t('Use a log file to store response when calling Git from the command line. If not used than the response will be stored in an array.'),
-  	'#default_value' => variable_get('versioncontrol_git_log_use_file', 1),
-  	'#weight' => 10,
-  );
 }
 
 /**
@@ -65,7 +58,6 @@ function versioncontrol_git_versioncontrol_extract_repository_data($form_values)
     'git_specific' => array(
       'update_method' => $form_values['update_method'],
     ),
-    'use_file' => $form_values['use_file'], // Temporary location.
   );
 }
 
