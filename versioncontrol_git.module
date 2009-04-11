@@ -267,7 +267,7 @@ function versioncontrol_git_get_selected_label_from_other_item($repository, $tar
   if ($item['revision'] == $other_item['revision']) {
     return versioncontrol_get_item_selected_label($repository, $other_item);
   }
-  
+
   //can be maybe optimized for speed by using the hints provided
   return _versioncontrol_git_get_branch_intersect($repository, $target_item, $other_item);
 }
@@ -285,7 +285,7 @@ function versioncontrol_git_get_selected_label_from_other_item($repository, $tar
  */
 function versioncontrol_git_account_username_suggestion($repository, $user) {
   // Use the kindof standard git identifier here, it's nothing too serious.
-  return $user->name . " <$user->mail>";
+  return $user->name ." <$user->mail>";
 }
 
 /**
@@ -356,26 +356,13 @@ function versioncontrol_git_update_repository_callback($repo_id) {
     if (_versioncontrol_git_update_repository($repository)) {
       drupal_set_message(t('Fetched new log entries.'));
     }
-    else
-    {
+    else {
       drupal_set_message(t('Error while fetching new log entries.'), 'error');
     }
   }
   else { // $repo_id is not a number or doesn't correlate to any repository.
     drupal_set_message(t('No such repository, did not fetch anything.'));
   }
-  drupal_goto('admin/project/versioncontrol-repositories');
-}
-
-function versioncontrol_git_truncate_repo()
-{
-  db_query("TRUNCATE {versioncontrol_item_revisions};");
-  db_query("TRUNCATE {versioncontrol_labels};");
-  db_query("TRUNCATE {versioncontrol_operations};");
-  db_query("TRUNCATE {versioncontrol_operation_items};");
-  db_query("TRUNCATE {versioncontrol_operation_labels};");
-  db_query("TRUNCATE {versioncontrol_source_items};");
-  drupal_set_message("truncated vcs-database");
   drupal_goto('admin/project/versioncontrol-repositories');
 }
 
@@ -418,32 +405,6 @@ function versioncontrol_git_format_revision_identifier($repository, $revision, $
     default:
       return $revision;
   }
-}
-
-/**
- * Returns an array of all labels in a repository, and if $type is given, filters by TAG or BRANCH.
- *
- * @param $repository As given by the API
- * @param $type Set the filter type, possibel values are VERSIONCONTROL_OPERATION_{TAG,BRANCH}
- * @return array An array of strings with the label names.
- */
-function versioncontrol_get_label_list($repository, $type = FALSE)
-{
-  $query = "SELECT label_id, repo_id, name, type FROM {versioncontrol_labels}
-      WHERE repo_id = %d";
-  if ($type !== FALSE) {
-     $query .= " AND type = %d";
-     $result = db_query($query, $repository['repo_id'], $type);
-  }
-  else
-  {
-    $result = db_query($query, $repository['repo_id']);
-  }
-  $labels = array();
-  while ($row = db_fetch_object($result)) {
-    $labels[] = $row->name;
-  }
-  return $labels;
 }
 
 /**
@@ -510,5 +471,3 @@ function versioncontrol_git_disable() {
     _versioncontrol_git_delete_repository_cache($repository);
   }
 }
-
-
