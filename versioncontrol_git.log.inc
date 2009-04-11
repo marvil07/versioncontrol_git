@@ -116,8 +116,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   // Deleting tags is *not* supported. Read the manual if you want to know why...
   // Check for new tags.
   $new_tags = array_diff($tags, $existing_tags);
-  // TODO: why count > 1???
-  if (count($new_tags) > 1) {
+  if (!empty($new_tags)) {
     _versioncontrol_git_process_tags($repository, $new_tags);
   }
 
@@ -237,7 +236,6 @@ function _versioncontrol_git_log_parse_tags(&$logs) {
  * @return array An $operation array which contains the info for the tag.
  */
 function _versioncontrol_git_log_parse_tag_info($repository, &$logs, $tag_commits) {
-  $matches = array();
   $line = next($logs); // Get op type
   if ($line === FALSE) {
     return FALSE;
@@ -328,18 +326,16 @@ function _versioncontrol_git_log_parse_tag_info($repository, &$logs, $tag_commit
  * @param string $tag The name of the tag.
  * @return An $operation array which contains the info for the tag.
  */
-function _versioncontrol_git_get_tag_operation($repository, $tags) {
+function _versioncontrol_git_get_tag_operations($repository, $tags) {
   $tag_ops = array();
   $tag_string = '';
   if (empty($tags)) {
     return array();
   }
   foreach ($tags as $tag) {
-    $tag_string .= "refs/tags/$tag ";
+    $tag_string .= escapeshellarg("refs/tags/$tag") . ' ';
   }
-  $tag_string = escapeshellarg($tag_string);
   $format = "%(objecttype)\n%(objectname)\n%(refname:short)\n%(taggername) %(taggeremail)\n%(taggerdate)\n%(contents)\nENDOFGITTAGOUTPUTMESAGEHERE";
-  $format = escapeshellarg($format);
   $exec = "git for-each-ref --format=\"$format\" $tag_string";
   $logs_tag_msg = _versioncontrol_git_log_exec($exec);
   $exec = "git show-ref -d $tag_string";
@@ -369,7 +365,7 @@ function _versioncontrol_git_get_tag_operation($repository, $tags) {
  * @param array $new_tags An array of strings for all new tags which shall be processed
  */
 function _versioncontrol_git_process_tags($repository, $new_tags) {
-  $tag_ops = _versioncontrol_git_get_tag_operation($repository, $new_tags);
+  $tag_ops = _versioncontrol_git_get_tag_operations($repository, $new_tags);
   foreach ($tag_ops as $tag_op) {
     $op_items = array();
     versioncontrol_insert_operation($tag_op, $op_items);
