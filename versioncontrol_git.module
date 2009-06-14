@@ -15,6 +15,7 @@ define('VERSIONCONTROL_GIT_UPDATE_XGIT', 1);
 
 // The admin and user edit pages.
 include_once(drupal_get_path('module', 'versioncontrol_git') .'/versioncontrol_git.admin.inc');
+include_once(drupal_get_path('module', 'versioncontrol') .'/includes/VersioncontrolRepository.php');
 
 /**
  * Implementation of hook_help().
@@ -216,7 +217,7 @@ function versioncontrol_git_clearlock_repository_callback($repo_id) {
  */
 function versioncontrol_git_update_repository_callback($repo_id) {
   if (is_numeric($repo_id)) {
-    $repository = versioncontrol_get_repository($repo_id);
+    $repository = VersioncontrolRepository::getRepository($repo_id);
 
     if (isset($repository)) {
       $update_method = $repository['git_specific']['update_method'];

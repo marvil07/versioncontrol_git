@@ -9,6 +9,9 @@
  * Copyright 2009 by Cornelius Riemenschneider ("CorniI", http://drupal.org/user/136353)
  */
 
+include_once(drupal_get_path('module', 'versioncontrol') .'/includes/VersioncontrolLabel.php');
+include_once(drupal_get_path('module', 'versioncontrol') .'/includes/VersioncontrolOperation.php');
+
 /**
  * Actually update the repository by fetching commits and other stuff
  * directly from the repository, invoking the git executable.
@@ -18,7 +21,7 @@
  *   failed for whatever reason.
  */
 function _versioncontrol_git_log_update_repository(&$repository) {
-  $root = escapeshellcmd($repository['root']);
+  $root = escapeshellcmd($repository->root);
   $chdir_ok = @chdir($root); // Set working directory to root.
   if ($chdir_ok === FALSE) {
     return FALSE;
@@ -28,7 +31,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
     return FALSE;
   }
   db_query('UPDATE {versioncontrol_git_repositories}
-            SET locked = 1 WHERE repo_id = %d', $repository['repo_id']);
+            SET locked = 1 WHERE repo_id = %d', $repository->id);
 
   // Get the list of current branches from Git.
   $branch_list = _versioncontrol_git_log_get_branches();
@@ -40,7 +43,8 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   $branches = array();
   foreach ($branch_list as $branch_name) {
     $add_branch_label['name'] = $branch_name;
-    $label_ret = versioncontrol_ensure_label($repository, $add_branch_label);
+    $label = new VersioncontrolLabel($branch_name, NULL, $repository);
+    $label_ret = $label->ensure($add_branch_label);
     $branches[$branch_name] = $label_ret;
   }
   //jpetso and me (corni) came to the conclusion that we will not delete branches.
@@ -48,7 +52,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   // Record new commits.
   $constraints = array(
     'vcs' => array('git'),
-    'repo_ids' => array($repository['repo_id']),
+    'repo_ids' => array($repository->id),
     'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
     'branches' => array() // used in the loop
   );
@@ -64,7 +68,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
       // We get all commits we have in this branch to not process them later.
       $constraints['branches'] = array($branch_name);
       $latest_commit_date = 0;
-      $commit_op = versioncontrol_get_operations($constraints);
+      $commit_op = VersioncontrolOperation::getOperations($constraints);
       $latest_commit = FALSE;
       foreach ($commit_op as $vc_op_id => $c_op) {
         if ($latest_commit_date < $c_op['date']) {
@@ -99,10 +103,10 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   $tags = _versioncontrol_git_log_get_tags(); //Now we have the current list of tags as array of strings.
   $constraints = array(
     'vcs' => array('git'),
-    'repo_ids' => array($repository['repo_id']),
+    'repo_ids' => array($repository->id),
     'types' => array(VERSIONCONTROL_OPERATION_TAG)
   );
-  $existing_tag_ops = versioncontrol_get_operations($constraints);
+  $existing_tag_ops = VersioncontrolOperation::getOperations($constraints);
   $existing_tags = array();
   foreach ($existing_tag_ops as $tag_op) {
     if (!in_array($tag_op['labels'][0]['name'], $existing_tags)) {
@@ -383,7 +387,7 @@ function _versioncontrol_git_get_source_item_helper($repository, $revision, $fil
   }
   $constraints = array(
     'vcs' => array('git'),
-    'repo_ids' => array($repository['repo_id']),
+    'repo_ids' => array($repository->id),
     'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
     'paths' => array($filename),
     'branches' => $branch_names
@@ -433,16 +437,10 @@ function _versioncontrol_git_get_source_item($repository, $filename, $parents, $
 }
 
 function _versioncontrol_git_insert_commit($repository, $date, $username, $message, $revision, $branches, $op_items) {
-  $op = array(
-    'type' => VERSIONCONTROL_OPERATION_COMMIT,
-    'repository' => $repository,
-    'date' => $date,
-    'username' => $username,//filled later
-    'message' => $message, //filled later
-    'revision' => $revision, //filled later
-    'labels' => $branches
-  );
-  versioncontrol_insert_operation($op, $op_items);
+  //FIXME: get author and commiter
+  $op = new VersioncontrolOperation($username, $date, $revision, $message, $username, $repository);
+  $op->labels = $branches;
+  $op->insert($op_items);
 }
 
 function _versioncontrol_git_parse_items($repository, &$logs, &$line, $revision, &$branches_per_commit, $parents) {
@@ -507,9 +505,9 @@ function _versioncontrol_git_check_already_parsed_commits($repository, $revision
       'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
       'revisions' => array($revision),
       'vcs' => array('git'),
-      'repo_ids' => array($repository['repo_id'])
+      'repo_ids' => array($repository->id)
   );
-  $same_rev_commit = versioncontrol_get_operations($constraints);
+  $same_rev_commit = VersioncontrolOperation::getOperations($constraints);
   $adjusted_commit = FALSE;
   foreach ($same_rev_commit as $vc_op_id => $rev_commit) {
     // We already have a commit with this revision recorded, so use a faster parser then.
