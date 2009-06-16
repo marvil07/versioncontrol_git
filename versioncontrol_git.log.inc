@@ -44,6 +44,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
     $branches[$branch_name] = $label_ret;
   }
   //jpetso and me (corni) came to the conclusion that we will not delete branches.
+  // TODO: revisit this!
   // Record new commits.
   $constraints = array(
     'vcs' => array('git'),
