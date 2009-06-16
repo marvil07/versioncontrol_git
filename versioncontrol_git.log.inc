@@ -128,46 +128,6 @@ function _versioncontrol_git_log_update_repository(&$repository) {
 }
 
 /**
- * Writes our existing_revs array to a file.
- */
-function _versioncontrol_git_write_cache(&$repository, &$existing_revs) {
-  $file = "<?php\n" .'$_versioncontrol_git_cache_var = ';
-  $file .= var_export($existing_revs, TRUE);
-  $file .= ';';
-  $path = '';
-  if (!file_exists($repository['git_specific']['cache_path'])) {
-    $key = sha1(mt_rand() + mt_rand());
-    $path = file_directory_temp();
-    file_check_directory($path, 3);
-    $path .= '/versioncontrol_git_cache_'. $key .'.php';
-    $repository['git_specific']['cache_path'] = $path;
-    db_query('UPDATE {versioncontrol_git_repositories}
-            SET cache_path = \'%s\' WHERE repo_id = %d',
-    serialize($path), $repository['repo_id']);
-  }
-  $path = $repository['git_specific']['cache_path'];
-  // Lock the file, as we may else have concurrent writes to the file, which would be *very* bad.
-  file_put_contents($path, $file, LOCK_EX);
-}
-
-/**
- * This function loads the array $existing_revs with the cache file from $repository.
- */
-function _versioncontrol_git_get_cache($repository, &$existing_revs) {
-  $path = $repository['git_specific']['cache_path'];
-  if (file_exists($path)) {
-    include $path;
-    $existing_revs = $_versioncontrol_git_cache_var;
-    unset($_versioncontrol_git_cache_var);
-  }
-  else {
-    $existing_revs = array();
-    return FALSE;
-  }
-  return TRUE;
-}
-
-/**
  * Execute a Git command using the root context and the command to be executed.
  * @param string $command Command to execute.
  * @return mixed Logged output from the command in either array of file pointer form.
