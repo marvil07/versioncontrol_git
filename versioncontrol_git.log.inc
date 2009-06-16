@@ -54,12 +54,13 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   );
   $branches_per_commit = array();
   $existing_revs = array();
-  // We cache the array in a temporary file to avoid the huge query when someone checks for new commits.
-  $cached = _versioncontrol_git_get_cache($repository, $existing_revs);
+  // Get the existing revisions from the cache.
+  $cache_object = cache_get('versioncontrol_git_rev_cache');
+  $existing_revs = $cache_object->data;
   // Get the list of current branches from Git.
   // Generate the range per branch with which git shall be called.
   foreach ($branches as $branch_name => $label) {
-    if (!$cached) {
+    if ($cache_object === 0) {
       // We get all commits we have in this branch to not process them later.
       $constraints['branches'] = array($branch_name);
       $latest_commit_date = 0;
@@ -120,7 +121,9 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   db_query('UPDATE {versioncontrol_git_repositories}
             SET updated = %d, locked = 0 WHERE repo_id = %d',
             $repository['git_specific']['updated'], $repository['repo_id']);
-  _versioncontrol_git_write_cache($repository, $existing_revs);
+
+  // Write back the cache.
+  cache_set('versioncontrol_git_rev_cache', $existing_revs);
   return TRUE;
 }
 
