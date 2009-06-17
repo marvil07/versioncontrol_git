@@ -9,8 +9,9 @@
  * Copyright 2009 by Cornelius Riemenschneider ("CorniI", http://drupal.org/user/136353)
  */
 
-include_once(drupal_get_path('module', 'versioncontrol') .'/includes/VersioncontrolLabel.php');
+include_once(drupal_get_path('module', 'versioncontrol') .'/includes/VersioncontrolBranch.php');
 include_once(drupal_get_path('module', 'versioncontrol') .'/includes/VersioncontrolOperation.php');
+include_once(drupal_get_path('module', 'versioncontrol') .'/includes/VersioncontrolItem.php');
 
 /**
  * Actually update the repository by fetching commits and other stuff
@@ -26,33 +27,28 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   if ($chdir_ok === FALSE) {
     return FALSE;
   }
-  if ($repository['git_specific']['locked'] == TRUE) {
+  if ($repository->git_specific['locked'] == TRUE) {
     drupal_set_message(t('This repository is locked, there is already a fetch in progress. If this is not the case, press the clear lock button.'), 'error');
     return FALSE;
   }
   db_query('UPDATE {versioncontrol_git_repositories}
-            SET locked = 1 WHERE repo_id = %d', $repository->id);
+            SET locked = 1 WHERE repo_id = %d', $repository->repo_id);
 
   // Get the list of current branches from Git.
   $branch_list = _versioncontrol_git_log_get_branches();
-  $add_branch_label = array(
-        'name' => '', //filled later
-        'type' => VERSIONCONTROL_OPERATION_BRANCH,
-        'action' => VERSIONCONTROL_ACTION_MODIFIED
-  );
   $branches = array();
   foreach ($branch_list as $branch_name) {
-    $add_branch_label['name'] = $branch_name;
-    $label = new VersioncontrolLabel($branch_name, NULL, $repository);
-    $label_ret = $label->ensure($add_branch_label);
-    $branches[$branch_name] = $label_ret;
+    $label = new VersioncontrolBranch(VERSIONCONTROL_OPERATION_BRANCH,
+      $branch_name, VERSIONCONTROL_ACTION_MODIFIED, NULL, $repository);
+    $label->ensure();
+    $branches[$branch_name] = $label;
   }
   //jpetso and me (corni) came to the conclusion that we will not delete branches.
   // TODO: revisit this!
   // Record new commits.
   $constraints = array(
     'vcs' => array('git'),
-    'repo_ids' => array($repository->id),
+    'repo_ids' => array($repository->repo_id),
     'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
     'branches' => array() // used in the loop
   );
@@ -105,7 +101,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   $tags = _versioncontrol_git_log_get_tags(); //Now we have the current list of tags as array of strings.
   $constraints = array(
     'vcs' => array('git'),
-    'repo_ids' => array($repository->id),
+    'repo_ids' => array($repository->repo_id),
     'types' => array(VERSIONCONTROL_OPERATION_TAG)
   );
   $existing_tag_ops = VersioncontrolOperation::getOperations($constraints);
@@ -123,10 +119,10 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   }
 
   // Update repository updated field. Displayed on administration interface for documentation purposes.
-  $repository['git_specific']['updated'] = time();
+  $repository->git_specific['updated'] = time();
   db_query('UPDATE {versioncontrol_git_repositories}
             SET updated = %d, locked = 0 WHERE repo_id = %d',
-            $repository['git_specific']['updated'], $repository['repo_id']);
+            $repository->git_specific['updated'], $repository->repo_id);
 
   // Write back the cache.
   cache_set('versioncontrol_git_rev_cache', $existing_revs);
@@ -389,7 +385,7 @@ function _versioncontrol_git_get_source_item_helper($repository, $revision, $fil
   }
   $constraints = array(
     'vcs' => array('git'),
-    'repo_ids' => array($repository->id),
+    'repo_ids' => array($repository->repo_id),
     'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
     'paths' => array($filename),
     'branches' => $branch_names
@@ -440,7 +436,7 @@ function _versioncontrol_git_get_source_item($repository, $filename, $parents, $
 
 function _versioncontrol_git_insert_commit($repository, $date, $username, $message, $revision, $branches, $op_items) {
   //FIXME: get author and commiter
-  $op = new VersioncontrolOperation($username, $date, $revision, $message, $username, $repository);
+  $op = new VersioncontrolOperation(VERSIONCONTROL_OPERATION_COMMIT, $username, $date, $revision, $message, $username, $repository);
   $op->labels = $branches;
   $op->insert($op_items);
 }
@@ -454,15 +450,16 @@ function _versioncontrol_git_parse_items($repository, &$logs, &$line, $revision,
     if (preg_match('/^(\S+)'."\t".'(\S+)'."\t".'(.+)$/', $line, $matches)) { // Begins with num lines added and matches expression.
       $read = TRUE;
       $path = '/'. $matches[3];
-      $op_items[$path] = array(
-          'type' => VERSIONCONTROL_ITEM_FILE,
-          'path' => $path,
-          'source_items' => array(),//filled later
-          'action' => $merge ? VERSIONCONTROL_ACTION_MERGED : VERSIONCONTROL_ACTION_MODIFIED,
-          'revision' => $revision
+      $op_items[$path] = new VersioncontrolItem(
+          VERSIONCONTROL_ITEM_FILE,
+          $path,
+          $revision,
+          //'source_items' => array(),//filled later
+          ($merge ? VERSIONCONTROL_ACTION_MERGED : VERSIONCONTROL_ACTION_MODIFIED),
+          $repository
       );
       if (is_numeric($matches[1] && is_numeric($matches[2]))) {
-        $op_items[$path]['line_changes'] = array(
+        $op_items[$path]->line_changes = array(
             'added' => $matches[1],
             'removed' => $matches[2]
         );
@@ -478,10 +475,10 @@ function _versioncontrol_git_parse_items($repository, &$logs, &$line, $revision,
       $read = TRUE;
       // We also can get 'mode' here if someone changes the file permissions.
       if ($matches[1] == 'create') {
-        $op_items['/'. $matches[4]]['action'] = VERSIONCONTROL_ACTION_ADDED;
+        $op_items['/'. $matches[4]]->action = VERSIONCONTROL_ACTION_ADDED;
       }
       else if ($matches[1] == 'delete') {
-        $op_items['/'. $matches[4]]['action'] = VERSIONCONTROL_ACTION_DELETED;
+        $op_items['/'. $matches[4]]->action = VERSIONCONTROL_ACTION_DELETED;
       }
     }
     else {
@@ -495,8 +492,8 @@ function _versioncontrol_git_parse_items($repository, &$logs, &$line, $revision,
     $line = next($logs);
   }
   foreach ($op_items as $path => $item) {
-    if ($item['action'] != VERSIONCONTROL_ACTION_ADDED) {
-      $op_items[$path]['source_items'] = _versioncontrol_git_get_source_item($repository, $path, $parents, $branches_per_commit[$revision], $revision);
+    if ($item->action != VERSIONCONTROL_ACTION_ADDED) {
+      $op_items[$path]->source_items = _versioncontrol_git_get_source_item($repository, $path, $parents, $branches_per_commit[$revision], $revision);
     }
   }
   return $op_items;
@@ -507,7 +504,7 @@ function _versioncontrol_git_check_already_parsed_commits($repository, $revision
       'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
       'revisions' => array($revision),
       'vcs' => array('git'),
-      'repo_ids' => array($repository->id)
+      'repo_ids' => array($repository->repo_id)
   );
   $same_rev_commit = VersioncontrolOperation::getOperations($constraints);
   $adjusted_commit = FALSE;
