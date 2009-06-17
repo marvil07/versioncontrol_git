@@ -60,7 +60,9 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   $existing_revs = array();
   // Get the existing revisions from the cache.
   $cache_object = cache_get('versioncontrol_git_rev_cache');
-  $existing_revs = $cache_object->data;
+  if (is_object($cache_object)) { // we have a correct return value on data member
+    $existing_revs = $cache_object->data;
+  }
   // Get the list of current branches from Git.
   // Generate the range per branch with which git shall be called.
   foreach ($branches as $branch_name => $label) {
