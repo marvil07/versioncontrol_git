@@ -445,7 +445,7 @@ function _versioncontrol_git_insert_commit($repository, $date, $username, $messa
   versioncontrol_insert_operation($op, $op_items);
 }
 
-function _versioncontrol_git_parse_items($repository, &$logs, &$line, $revision, &$branches_per_commit, $parents) {
+function _versioncontrol_git_parse_items($repository, &$logs, &$line, $revision, &$branches_per_commit, $parents, $merge) {
   $op_items = array();
   $read = FALSE;
 
@@ -601,7 +601,7 @@ function _versioncontrol_git_log_parse_commits($repository, &$logs, &$branches_p
   $line = next($logs); // Points to either the next entry or the first items modified or to the file actions
   // Get the items
   $op_items = _versioncontrol_git_parse_items($repository, $logs, $line, $revision,
-  $branches_per_commit, $parents);
+  $branches_per_commit, $parents, $merge);
 
   _versioncontrol_git_insert_commit($repository, $date, $username,
   $message, $revision, $branches_per_commit[$revision], $op_items);
