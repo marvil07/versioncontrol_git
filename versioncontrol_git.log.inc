@@ -513,13 +513,13 @@ function _versioncontrol_git_check_already_parsed_commits($repository, $revision
     // We already have a commit with this revision recorded, so use a faster parser then.
     $adjusted_commit = TRUE;
     $labels = array();
-    foreach ( $rev_commit['labels'] as $label) {
+    foreach ( $rev_commit->labels as $label) {
       if ($label['type'] == VERSIONCONTROL_OPERATION_TAG) {
         $labels[] = $label;
       }
     }
     $labels = array_merge($labels, $branches_per_commit[$revision]);
-    versioncontrol_update_operation_labels($rev_commit, $labels);
+    $rev_commit->updateLabels($labels);
     $line = next($logs); // Get $parents
     $line = next($logs); // Get Author
     $line = next($logs); // Get Date as Timestamp

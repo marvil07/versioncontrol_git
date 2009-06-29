@@ -131,7 +131,7 @@ function _versioncontrol_git_get_branch_intersect($repository, $item1, $item2) {
     'repo_ids' => array($repository['repo_id']),
     'types' => array(VERSIONCONTROL_OPERATION_COMMIT)
   );
-  $commit_ops = versioncontrol_get_operations($constraints);
+  $commit_ops = VersioncontrolOperation::getOperations($constraints);
   $branches1 = array();
   $branches2 = array();
   foreach ($commit_ops as $vc_op_id => $op) {
