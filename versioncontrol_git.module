@@ -161,7 +161,7 @@ function versioncontrol_git_get_selected_label_from_other_item($repository, $tar
   // (e.g. Git, Mercurial, Bazaar) but might not be the case with others
   // (CVS for its lack of global revision identifiers, SVN for its use of
   // directory structure as tag/branch identifiers).
-  if ($item['revision'] == $other_item['revision']) {
+  if ($target_item['revision'] == $other_item['revision']) {
     return versioncontrol_get_item_selected_label($repository, $other_item);
   }
 
