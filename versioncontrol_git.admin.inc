@@ -23,7 +23,7 @@ function versioncontrol_git_form_alter(&$form, $form_state, $form_id) {
  * Add Git specific elements to the add/edit repository form.
  */
 function versioncontrol_git_repository_admin_form_alter(&$form, $form_state, $form_id) {
-  $repository = $form['#repository'];
+  $repository = isset($form['#repository'])? $form['#repository']: null;
 
   $form['versioncontrol_git'] = array(
     '#type' => 'value',
@@ -33,8 +33,8 @@ function versioncontrol_git_repository_admin_form_alter(&$form, $form_state, $fo
     '#type' => 'radios',
     '#title' => t('Update method'),
     '#description' => t('Automatic log retrieval requires cron.'),
-    '#default_value' => isset($repository)
-                        ? $repository['git_specific']['update_method']
+    '#default_value' => !is_null($repository)
+                        ? $repository->git_specific['update_method']
                         : VERSIONCONTROL_GIT_UPDATE_CRON,
     '#weight' => 9,
     '#options' => array(
