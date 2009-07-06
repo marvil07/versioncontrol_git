@@ -38,8 +38,8 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   $branch_list = _versioncontrol_git_log_get_branches();
   $branches = array();
   foreach ($branch_list as $branch_name) {
-    $label = new VersioncontrolBranch(VERSIONCONTROL_OPERATION_BRANCH,
-      $branch_name, VERSIONCONTROL_ACTION_MODIFIED, NULL, $repository);
+    $label = new VersioncontrolBranch($branch_name,
+      VERSIONCONTROL_ACTION_MODIFIED, NULL, $repository);
     $label->ensure();
     $branches[$branch_name] = $label;
   }
