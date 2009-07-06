@@ -126,9 +126,9 @@ function versioncontrol_git_get_selected_label_from_operation($operation, $targe
 
 function _versioncontrol_git_get_branch_intersect($repository, $item1, $item2) {
   $constraints = array(
-    'revisions' => array($item1['revision'], $item2['revision']),
+    'revisions' => array($item1->revision, $item2->revision),
     'vcs' => array('git'),
-    'repo_ids' => array($repository['repo_id']),
+    'repo_ids' => array($repository->repo_id),
     'types' => array(VERSIONCONTROL_OPERATION_COMMIT)
   );
   $commit_ops = VersioncontrolOperation::getOperations($constraints);
@@ -146,8 +146,12 @@ function _versioncontrol_git_get_branch_intersect($repository, $item1, $item2) {
       }
     }
   }
-  $branches = array_intersect($branches1, $branches2);
-  return array_pop($branches); // We don't know any keys in $branches, so we use array_pop here. Also it'll return NULL if needed
+  foreach ($branches1 as $key => $value) {
+    if (!in_array($value, $branches2)) {
+      unset($branches1[$key]);
+    }
+  }
+  return array_pop($branches1); // We don't know any keys in $branches, so we use array_pop here. Also it'll return NULL if needed
 }
 
 /**

@@ -81,7 +81,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
     unset($commit_op);
 
     $commits_in_branch = _versioncontrol_git_log_get_commits_in_branch($repository, escapeshellarg($branch_name));
-    foreach ($commits_in_branch as $i => $commit) {
+    foreach ($commits_in_branch as $commit) {
       if (!isset($existing_revs[$branch_name][$commit])) {
         if (!isset($branches_per_commit[$commit]) || !is_array($branches_per_commit[$commit])) {
           $branches_per_commit[$commit] = array($label);
@@ -420,10 +420,12 @@ function _versioncontrol_git_get_source_item($repository, $filename, $parents, $
       $logs = _versioncontrol_git_log_exec($exec); // Query tags.
       $revision = next($logs);
       $ret = array(
-        array(
-          'path' => $filename,
-          'type' => VERSIONCONTROL_ITEM_FILE,
-          'revision' => $revision
+        new VersioncontrolItem(
+          VERSIONCONTROL_ITEM_FILE,
+          $filename,
+          $revision,
+          null,
+          $repository
         )
       );
   }
