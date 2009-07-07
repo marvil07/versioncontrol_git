@@ -200,7 +200,7 @@ function _versioncontrol_git_log_parse_tag_info($repository, &$logs, $tag_commit
   if ($line == 'commit') {
     //let's get the author and the date from the tagged commit, better than nothing.
     $tagged_commit = next($logs); // Get the tagged commit
-    $tag_name = next($logs); // Get the name of the tag
+    $tag_name = substr(strrchr(next($logs), '/'), 1 ); // Get the name of the tag based on %(refname)
     next($logs); // Skip these two lines
     next($logs);
     // Get the tag/commit message
@@ -241,7 +241,7 @@ function _versioncontrol_git_log_parse_tag_info($repository, &$logs, $tag_commit
     );
   }
   $line = next($logs); // Skip op sha1
-  $tag_name = next($logs); // Get tag name
+  $tag_name = substr(strrchr(next($logs), '/'), 1 ); // Get the name of the tag based on %(refname)
   $tagger = next($logs); // Get tagger
   $date = strtotime(next($logs)); // Get date
   // Get the tag message
@@ -292,7 +292,7 @@ function _versioncontrol_git_get_tag_operations($repository, $tags) {
   foreach ($tags as $tag) {
     $tag_string .= escapeshellarg("refs/tags/$tag") .' ';
   }
-  $format = "%(objecttype)\n%(objectname)\n%(refname:short)\n%(taggername) %(taggeremail)\n%(taggerdate)\n%(contents)\nENDOFGITTAGOUTPUTMESAGEHERE";
+  $format = "%(objecttype)\n%(objectname)\n%(refname)\n%(taggername) %(taggeremail)\n%(taggerdate)\n%(contents)\nENDOFGITTAGOUTPUTMESAGEHERE";
   $exec = "git for-each-ref --format=\"$format\" $tag_string";
   $logs_tag_msg = _versioncontrol_git_log_exec($exec);
   $exec = "git show-ref -d $tag_string";
