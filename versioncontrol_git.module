@@ -106,7 +106,7 @@ function versioncontrol_git_cron() {
     set_time_limit(3600);
   }
   while ($repo = db_fetch_object($result)) {
-    $repository = versioncontrol_get_repository($repo->repo_id);
+    $repository = VersioncontrolRepository::getRepository($repo->repo_id);
     if (isset($repository)) {
       _versioncontrol_git_update_repository($repository);
     }
@@ -224,7 +224,7 @@ function versioncontrol_git_update_repository_callback($repo_id) {
     $repository = VersioncontrolRepository::getRepository($repo_id);
 
     if (isset($repository)) {
-      $update_method = $repository['git_specific']['update_method'];
+      $update_method = $repository->git_specific['update_method'];
     }
   }
   if (isset($update_method) && $update_method == VERSIONCONTROL_GIT_UPDATE_CRON) {

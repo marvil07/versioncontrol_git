@@ -108,8 +108,8 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   $existing_tag_ops = VersioncontrolOperation::getOperations($constraints);
   $existing_tags = array();
   foreach ($existing_tag_ops as $tag_op) {
-    if (!in_array($tag_op['labels'][0]['name'], $existing_tags)) {
-      $existing_tags[] = $tag_op['labels'][0]['name'];
+    if (!in_array($tag_op->labels[0]->name, $existing_tags)) {
+      $existing_tags[] = $tag_op->labels[0]->name;
     }
   }
   // Deleting tags is *not* supported. Read the manual if you want to know why...
@@ -224,21 +224,20 @@ function _versioncontrol_git_log_parse_tag_info($repository, &$logs, $tag_commit
     );
     $op = VersioncontrolOperation::getOperations($constraints);
     $op = array_pop($op);
-    return array(
-      'type' => VERSIONCONTROL_OPERATION_TAG,
-      'repository' => $repository,
-      'date' => $op['date']+1, // We want to be displayed *after* the tagged commit.
-      'username' => $op['username'],
-      'message' => $message,
-      'revision' => $tagged_commit,
-      'labels' => array(
-        0 => array(
-          'name' => $tag_name,
-          'type' => VERSIONCONTROL_OPERATION_TAG,
-          'action' => VERSIONCONTROL_ACTION_ADDED
-        )
-      )
+    //FIXME get author/commiter
+    $o_operation = new VersioncontrolOperation(
+      VERSIONCONTROL_OPERATION_TAG,
+      $op->author,
+      $op->date+1, // We want to be displayed *after* the tagged commit.
+      $tagged_commit,
+      $message,
+      $op->author,
+      $repository
     );
+    $o_operation->labels = array(
+      0 => new VersioncontrolTag($tag_name, VERSIONCONTROL_ACTION_ADDED, null, $repository)
+    );
+    return $o_operation;
   }
   $line = next($logs); // Skip op sha1
   $tag_name = substr(strrchr(next($logs), '/'), 1 ); // Get the name of the tag based on %(refname)
@@ -259,21 +258,19 @@ function _versioncontrol_git_log_parse_tag_info($repository, &$logs, $tag_commit
   }
   $tagged_commit = $tag_commits[$tag_name];
   // By now, we're done with the parsing, construct the op array
-  return array(
-    'type' => VERSIONCONTROL_OPERATION_TAG,
-    'repository' => $repository,
-    'date' => $date,
-    'username' => $tagger,
-    'message' => $message,
-    'revision' => $tagged_commit,
-    'labels' => array(
-      0 => array(
-        'name' => $tag_name,
-        'type' => VERSIONCONTROL_OPERATION_TAG,
-        'action' => VERSIONCONTROL_ACTION_ADDED
-      )
-    )
+  $o_operation = new VersioncontrolOperation(
+    VERSIONCONTROL_OPERATION_TAG,
+    $tagger,
+    $date,
+    $tagged_commit,
+    $message,
+    $tagger,
+    $repository
   );
+  $o_operation->labels = array(
+      0 => new VersioncontrolTag($tag_name, VERSIONCONTROL_ACTION_ADDED, null, $repository)
+    );
+  return $o_operation;
 }
 
 /**
@@ -333,10 +330,11 @@ function _versioncontrol_git_process_tags($repository, $new_tags) {
     );
     $tag_commits = VersioncontrolOperation::getOperations($constraints);
     foreach ($tag_commits as $vc_op_id => $tag_commit_op) {
-      $tag_commit_op['labels'][] = array(
-        'name' => $tag_op['labels'][0]['name'],
-        'action' => VERSIONCONTROL_ACTION_MODIFIED,
-        'type' => VERSIONCONTROL_OPERATION_TAG
+      $tag_commit_op->labels[] = new VersioncontrolTag(
+        $tag_op['labels'][0]['name'],
+        VERSIONCONTROL_ACTION_MODIFIED,
+        null,
+        $repository
       );
       $tag_commit_op->updateLabels($tag_commit_op->labels);
     }
