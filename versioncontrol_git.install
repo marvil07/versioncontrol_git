@@ -68,4 +68,5 @@ function versioncontrol_git_install() {
  */
 function versioncontrol_git_uninstall() {
   drupal_uninstall_schema('versioncontrol_git');
+  cache_clear_all('versioncontrol_git_rev_cache', 'cache');
 }
