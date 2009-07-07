@@ -218,11 +218,11 @@ function _versioncontrol_git_log_parse_tag_info($repository, &$logs, $tag_commit
     }
     $constraints = array(
       'vcs' => array('git'),
-      'repo_ids' => array($repository['repo_id']),
+      'repo_ids' => array($repository->repo_id),
       'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
       'revisions' => array($tagged_commit)
     );
-    $op = versioncontrol_get_operations($constraints);
+    $op = VersioncontrolOperation::getOperations($constraints);
     $op = array_pop($op);
     return array(
       'type' => VERSIONCONTROL_OPERATION_TAG,
@@ -324,21 +324,21 @@ function _versioncontrol_git_process_tags($repository, $new_tags) {
   $tag_ops = _versioncontrol_git_get_tag_operations($repository, $new_tags);
   foreach ($tag_ops as $tag_op) {
     $op_items = array();
-    versioncontrol_insert_operation($tag_op, $op_items);
+    $tag_op->insert($op_items);
     $constraints = array(
       'vcs' => array('git'),
-      'repo_ids' => array($repository['repo_id']),
+      'repo_ids' => array($repository->repo_id),
       'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
-      'revisions' => array($tag_op['revision'])
+      'revisions' => array($tag_op->revision)
     );
-    $tag_commits = versioncontrol_get_operations($constraints);
+    $tag_commits = VersioncontrolOperation::getOperations($constraints);
     foreach ($tag_commits as $vc_op_id => $tag_commit_op) {
       $tag_commit_op['labels'][] = array(
         'name' => $tag_op['labels'][0]['name'],
         'action' => VERSIONCONTROL_ACTION_MODIFIED,
         'type' => VERSIONCONTROL_OPERATION_TAG
       );
-      versioncontrol_update_operation_labels($tag_commit_op, $tag_commit_op['labels']);
+      $tag_commit_op->updateLabels($tag_commit_op->labels);
     }
   }
 }
