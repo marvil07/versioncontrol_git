@@ -13,6 +13,7 @@
 define('VERSIONCONTROL_GIT_UPDATE_CRON', 0);
 define('VERSIONCONTROL_GIT_UPDATE_XGIT', 1);
 
+require_once drupal_get_path('module', 'versioncontrol_git') . '/includes/VersioncontrolGitBackend.php';
 // The admin and user edit pages.
 include_once(drupal_get_path('module', 'versioncontrol_git') .'/versioncontrol_git.admin.inc');
 include_once(drupal_get_path('module', 'versioncontrol') .'/includes/VersioncontrolRepository.php');
@@ -42,33 +43,7 @@ function versioncontrol_git_help($section, $arg) {
  */
 function versioncontrol_git_versioncontrol_backends() {
   return array(
-    // The array key is up to 8 characters long, and used as unique identifier
-    // for this VCS, in functions, URLs and in the database.
-    'git' => array(
-      // The user-visible name of the VCS.
-      'name' => 'Git',
-
-      // A short description of the VCS, if possible not longer than one or two sentences.
-      'description' => t('Git is a fast, scalable, distributed revision control system with an unusually rich command set that provides both high-level operations and full access to internals.'),
-
-      // A list of optional capabilities, in addition to the required retrieval
-      // of detailed commit information.
-      'capabilities' => array(
-        // Use the commit hash for to identify the commit instead of an idvidual
-        // revision for each file.
-        VERSIONCONTROL_CAPABILITY_ATOMIC_COMMITS
-      ),
-
-      // An array listing which tables should be managed by Version Control API
-      // instead of doing it manually in the backend.
-      'flags' => array(
-        // versioncontrol_insert_repository() will automatically insert
-        // array elements from $repository['git_specific'] into
-        // {versioncontrol_git_repositories} and versioncontrol_get_repositories()
-        // will automatically fetch it from there.
-        VERSIONCONTROL_FLAG_AUTOADD_REPOSITORIES,
-      ),
-    ),
+    'git' => new VersioncontrolGitBackend()
   );
 }
 
