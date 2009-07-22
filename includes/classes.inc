@@ -19,6 +19,12 @@ class VersioncontrolGitBackend extends VersioncontrolBackend {
         // will automatically fetch it from there.
         VERSIONCONTROL_FLAG_AUTOADD_REPOSITORIES,
     );
+    $this->classes = array(
+      'repo' => 'VersioncontrolGitRepository',
+    );
   }
 
+}
+
+class VersioncontrolGitRepository extends VersioncontrolRepository {
 }
