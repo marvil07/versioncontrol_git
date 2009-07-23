@@ -13,10 +13,8 @@
 define('VERSIONCONTROL_GIT_UPDATE_CRON', 0);
 define('VERSIONCONTROL_GIT_UPDATE_XGIT', 1);
 
-require_once drupal_get_path('module', 'versioncontrol_git') . '/includes/classes.inc';
 // The admin and user edit pages.
 include_once(drupal_get_path('module', 'versioncontrol_git') .'/versioncontrol_git.admin.inc');
-include_once(drupal_get_path('module', 'versioncontrol') .'/includes/VersioncontrolRepository.php');
 
 /**
  * Implementation of hook_help().
@@ -178,4 +176,27 @@ function versioncontrol_git_update_repository_callback($repo_id) {
 function _versioncontrol_git_update_repository(&$repository) {
   include_once(drupal_get_path('module', 'versioncontrol_git') .'/versioncontrol_git.log.inc');
   return _versioncontrol_git_log_update_repository($repository);
+}
+
+/**
+ * Implementation of hook_autoload_info().
+ */
+function versioncontrol_git_autoload_info() {
+  return array(
+    'VersioncontrolGitAccount' => array(
+      'file' => 'includes/classes.inc',
+    ),
+    'VersioncontrolGitBackend' => array(
+      'file' => 'includes/classes.inc',
+    ),
+    'VersioncontrolGitItem' => array(
+      'file' => 'includes/classes.inc',
+    ),
+    'VersioncontrolGitOperation' => array(
+      'file' => 'includes/classes.inc',
+    ),
+    'VersioncontrolGitRepository' => array(
+      'file' => 'includes/classes.inc',
+    ),
+  );
 }

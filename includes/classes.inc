@@ -1,7 +1,5 @@
 <?php
 
-require_once drupal_get_path('module', 'versioncontrol') . '/includes/VersioncontrolBackend.php';
-
 class VersioncontrolGitBackend extends VersioncontrolBackend {
 
   public function __construct() {
