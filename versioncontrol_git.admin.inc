@@ -33,8 +33,8 @@ function versioncontrol_git_repository_admin_form_alter(&$form, $form_state, $fo
     '#type' => 'radios',
     '#title' => t('Update method'),
     '#description' => t('Automatic log retrieval requires cron.'),
-    '#default_value' => isset($repository)
-                        ? $repository['git_specific']['update_method']
+    '#default_value' => !is_null($repository)
+                        ? $repository['data']['versioncontrol_git']['update_method']
                         : VERSIONCONTROL_GIT_UPDATE_CRON,
     '#weight' => 9,
     '#options' => array(
@@ -49,16 +49,13 @@ function versioncontrol_git_repository_admin_form_alter(&$form, $form_state, $fo
  * Extract Git specific repository additions from the repository
  * editing/adding form's submitted values.
  */
-function versioncontrol_git_versioncontrol_extract_repository_data($form_values) {
-  if (!isset($form_values['versioncontrol_git'])) {
+function versioncontrol_git_versioncontrol_repository_submit(&$repository, $form, $form_state) {
+  if (!isset($form['versioncontrol_git'])) {
     return array();
   }
 
-  return array(
-    'git_specific' => array(
-      'update_method' => $form_values['update_method'],
-    ),
-  );
+  $update_method = (int)$form_state['values']['update_method'];
+  $repository['data']['versioncontrol_git']['update_method'] = $update_method;
 }
 
 /**
