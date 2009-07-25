@@ -268,34 +268,3 @@ function versioncontrol_git_format_revision_identifier($repository, $revision, $
       return $revision;
   }
 }
-
-/**
- * Delete the cache file for a given repository.
- * @param $repository
- * 	The repository to delete the cache for
- */
-function _versioncontrol_git_delete_repository_cache($repository) {
-  $cache = $repository['git_specific']['cache_path'];
-  if (file_exists($cache)) {
-    @unlink($cache);
-  }
-}
-
-/**
- * Implementation of hook_repository().
- */
-function versioncontrol_git_repository($op, $repository) {
-  if ($op == 'delete') {
-    _versioncontrol_git_delete_repository_cache($repository);
-  }
-}
-
-function versioncontrol_git_disable() {
-  $constraints = array(
-    'vcs' => array('git')
-  );
-  $repos = versioncontrol_get_repositories($constraints);
-  foreach ($repos as $repository) {
-    _versioncontrol_git_delete_repository_cache($repository);
-  }
-}

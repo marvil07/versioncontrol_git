@@ -44,12 +44,6 @@ function versioncontrol_git_schema() {
         'not null' => FALSE,
         'default' => 0,
         ),
-      'cache_path' => array(
-        'description' => t('Path of the cache file.'),
-        'type' => 'blob',
-        'not null' => FALSE,
-        'default' => '',
-        ),
       ),
     'primary key' => array('repo_id'),
   );
