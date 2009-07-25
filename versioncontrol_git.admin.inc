@@ -45,7 +45,7 @@ function versioncontrol_git_repository_admin_form_alter(&$form, $form_state, $fo
 }
 
 /**
- * Implementation of hook_versioncontrol_extract_repository_data():
+ * Implementation of hook_versioncontrol_repository_submit():
  * Extract Git specific repository additions from the repository
  * editing/adding form's submitted values.
  */
@@ -56,6 +56,14 @@ function versioncontrol_git_versioncontrol_repository_submit(&$repository, $form
 
   $update_method = (int)$form_state['values']['update_method'];
   $repository->data['versioncontrol_git']['update_method'] = $update_method;
+
+  // provide defaulf values on repo create
+  if (!isset($repository->data['versioncontrol_git']['updated'])) {
+    $repository->data['versioncontrol_git']['updated'] = 0;
+  }
+  if (!isset($repository->data['versioncontrol_git']['locked'])) {
+    $repository->data['versioncontrol_git']['locked'] = 0;
+  }
 }
 
 /**
