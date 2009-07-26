@@ -27,12 +27,12 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   if ($chdir_ok === FALSE) {
     return FALSE;
   }
-  if ($repository->git_specific['locked'] == TRUE) {
+  if ($repository->data['versioncontrol_git']['locked'] == TRUE) {
     drupal_set_message(t('This repository is locked, there is already a fetch in progress. If this is not the case, press the clear lock button.'), 'error');
     return FALSE;
   }
-  db_query('UPDATE {versioncontrol_git_repositories}
-            SET locked = 1 WHERE repo_id = %d', $repository->repo_id);
+  $repository->data['versioncontrol_git']['locked'] = 1;
+  $repository->update();
 
   // Get the list of current branches from Git.
   $branch_list = _versioncontrol_git_log_get_branches();
@@ -120,10 +120,9 @@ function _versioncontrol_git_log_update_repository(&$repository) {
   }
 
   // Update repository updated field. Displayed on administration interface for documentation purposes.
-  $repository->git_specific['updated'] = time();
-  db_query('UPDATE {versioncontrol_git_repositories}
-            SET updated = %d, locked = 0 WHERE repo_id = %d',
-            $repository->git_specific['updated'], $repository->repo_id);
+  $repository->data['versioncontrol_git']['updated'] = time();
+  $repository->data['versioncontrol_git']['locked'] = 0;
+  $repository->update();
 
   // Write back the cache.
   cache_set('versioncontrol_git_rev_cache', $existing_revs);

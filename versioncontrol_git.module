@@ -71,20 +71,20 @@ function versioncontrol_git_menu() {
  * Implementation of hook_cron()
  */
 function versioncontrol_git_cron() {
-  // get repositories that have log fetching enabled
-  $result = db_query("SELECT repo_id FROM {versioncontrol_git_repositories}
-                      WHERE update_method = %d", VERSIONCONTROL_GIT_UPDATE_CRON);
+  $constraints = array( 'vcs' => array('git') );
+  $git_repositories = VersioncontrolRepositoryCache::getInstance()->getRepositories($constraints);
 
   // Set timeout limit to 3600 seconds as it can take a long time to process
   // the log initially. (And hook_cron() might be called by poormanscron.)
   if (!ini_get('safe_mode')) {
     set_time_limit(3600);
   }
-  while ($repo = db_fetch_object($result)) {
-    $repository = VersioncontrolRepositoryCache::getInstance()->getRepository($repo->repo_id);
-    if (isset($repository)) {
-      _versioncontrol_git_update_repository($repository);
+  foreach ($git_repositories as $repository) {
+    if ($repository->data['versioncontrol_git']['update_method'] != VERSIONCONTROL_GIT_UPDATE_CRON) {
+      // get repositories that have log fetching enabled
+      continue;
     }
+    _versioncontrol_git_update_repository($repository);
   }
 }
 
@@ -180,8 +180,9 @@ function versioncontrol_git_is_account_username_valid($repository, &$username) {
  */
 function versioncontrol_git_clearlock_repository_callback($repo_id) {
   if (is_numeric($repo_id)) {
-    db_query('UPDATE {versioncontrol_git_repositories}
-            SET locked = 0 WHERE repo_id = %d', $repo_id);
+    $repository = VersioncontrolRepositoryCache::getInstance()->getRepository($repo_id);
+    $repository->data['versioncontrol_git']['locked'] = 0;
+    $repository->update();
     drupal_set_message(t('Cleared the lock for the repository.'));
   }
   drupal_goto('admin/project/versioncontrol-repositories');
@@ -199,7 +200,7 @@ function versioncontrol_git_update_repository_callback($repo_id) {
     $repository = VersioncontrolRepositoryCache::getInstance()->getRepository($repo_id);
 
     if (isset($repository)) {
-      $update_method = $repository->git_specific['update_method'];
+      $update_method = $repository->data['versioncontrol_git']['update_method'];
     }
   }
   if (isset($update_method) && $update_method == VERSIONCONTROL_GIT_UPDATE_CRON) {

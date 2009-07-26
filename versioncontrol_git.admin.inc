@@ -96,16 +96,16 @@ function versioncontrol_git_versioncontrol_alter_repository_list($vcs, $reposito
   $header[] = t('Locking');
 
   foreach ($rows_by_repo_id as $repo_id => $row) {
-    if ($repositories[$repo_id]['git_specific']['update_method'] == VERSIONCONTROL_GIT_UPDATE_XGIT) {
+    if ($repositories[$repo_id]->data['versioncontrol_git']['update_method'] == VERSIONCONTROL_GIT_UPDATE_XGIT) {
       $rows_by_repo_id[$repo_id][] = t('external script');
     }
-    if ($repositories[$repo_id]['git_specific']['update_method'] == VERSIONCONTROL_GIT_UPDATE_CRON) {
+    if ($repositories[$repo_id]->data['versioncontrol_git']['update_method'] == VERSIONCONTROL_GIT_UPDATE_CRON) {
       $rows_by_repo_id[$repo_id][] = t('logs (!fetch)', array(
         '!fetch' => l(t('fetch now'), 'admin/project/versioncontrol-repositories/update/git/'. $repo_id)
       ));
     }
-    $rows_by_repo_id[$repo_id][] = $repositories[$repo_id]['git_specific']['updated']
-      ? format_date($repositories[$repo_id]['git_specific']['updated'], 'small')
+    $rows_by_repo_id[$repo_id][] = $repositories[$repo_id]->data['versioncontrol_git']['updated']
+      ? format_date($repositories[$repo_id]->data['versioncontrol_git']['updated'], 'small')
       : t('never');
     $rows_by_repo_id[$repo_id][] = t('Locking (!lock)', array(
         '!lock' => l(t('Clear lock now'), 'admin/project/versioncontrol-repositories/clearlock/git/'. $repo_id)

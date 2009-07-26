@@ -12,13 +12,6 @@ class VersioncontrolGitBackend extends VersioncontrolBackend {
         // revision for each file.
         VERSIONCONTROL_CAPABILITY_ATOMIC_COMMITS
     );
-    $this->flags = array(
-        // versioncontrol_insert_repository() will automatically insert
-        // array elements from $repository['git_specific'] into
-        // {versioncontrol_git_repositories} and versioncontrol_get_repositories()
-        // will automatically fetch it from there.
-        VERSIONCONTROL_FLAG_AUTOADD_REPOSITORIES,
-    );
     $this->classes = array(
       'repo' => 'VersioncontrolGitRepository',
     );

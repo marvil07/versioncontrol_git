@@ -10,57 +10,15 @@
  */
 
 /**
- * Implementation of hook_schema().
- */
-function versioncontrol_git_schema() {
-  $schema['versioncontrol_git_repositories'] = array(
-    'description' => t('Git repositories.'),
-    'fields' => array(
-      'repo_id' => array(
-        'description' => t('Repository identifier.'),
-        'type' => 'serial',
-        'unsigned' => TRUE,
-        'not null' => TRUE,
-        ),
-      'update_method' => array(
-        'description' => t('Update method.'),
-        'type' => 'int',
-        'size' => 'tiny',
-        'unsigned' => TRUE,
-        'not null' => TRUE,
-        'default' => 0,
-        ),
-      'updated' => array(
-        'description' => t('Last update.'),
-        'type' => 'int',
-        'unsigned' => TRUE,
-        'not null' => TRUE,
-        'default' => 0,
-        ),
-      'locked' => array(
-        'description' => t('True when there is an update in progress.'),
-        'type' => 'int',
-        'unsigned' => TRUE,
-        'not null' => FALSE,
-        'default' => 0,
-        ),
-      ),
-    'primary key' => array('repo_id'),
-  );
-  return $schema;
-}
-
-/**
- * Implementation of hook_install().
- */
-function versioncontrol_git_install() {
-  drupal_install_schema('versioncontrol_git');
-}
-
-/**
  * Implementation of hook_uninstall().
  */
 function versioncontrol_git_uninstall() {
-  drupal_uninstall_schema('versioncontrol_git');
+  cache_clear_all('versioncontrol_git_rev_cache', 'cache');
+}
+
+/**
+ * Implementation of hook_disable().
+ */
+function versioncontrol_git_disable() {
   cache_clear_all('versioncontrol_git_rev_cache', 'cache');
 }
