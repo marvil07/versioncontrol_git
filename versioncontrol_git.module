@@ -159,21 +159,6 @@ function versioncontrol_git_account_username_suggestion($repository, $user) {
 }
 
 /**
- * Implementation of hook_is_account_username_valid().
- */
-function versioncontrol_git_is_account_username_valid($repository, &$username) {
-  // @TODO: adjust, too
-  // We want to allow "prename name <email@example.org>"
-  // Or just "nick <email@example.org>"
-  // Or just whatever naming convention you like
-  // This means, we just check for control characters and NULs here
-  if (preg_match("/[\\x00-\\x1f]/", $username) == 0) {
-    return TRUE;
-  }
-  return FALSE;
-}
-
-/**
  * Menu callback for 'admin/project/versioncontrol-repositories/clearlock/git'
  * (expecting a $repo_id as one more path argument):
  * Clears the update lock for the specified repository
