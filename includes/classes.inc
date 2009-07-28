@@ -16,6 +16,7 @@ class VersioncontrolGitBackend extends VersioncontrolBackend {
       'repo' => 'VersioncontrolGitRepository',
       'account' => 'VersioncontrolGitAccount',
       'operation' => 'VersioncontrolGitOperation',
+      'item' => 'VersioncontrolGitItem',
     );
   }
 
@@ -69,4 +70,7 @@ class VersioncontrolGitAccount extends VersioncontrolAccount {
 }
 
 class VersioncontrolGitOperation extends VersioncontrolOperation {
+}
+
+class VersioncontrolGitItem extends VersioncontrolItem {
 }

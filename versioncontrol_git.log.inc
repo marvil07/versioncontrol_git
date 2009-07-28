@@ -417,7 +417,7 @@ function _versioncontrol_git_get_source_item($repository, $filename, $parents, $
       $logs = _versioncontrol_git_log_exec($exec); // Query tags.
       $revision = next($logs);
       $ret = array(
-        new VersioncontrolItem(
+        new VersioncontrolGitItem(
           VERSIONCONTROL_ITEM_FILE,
           $filename,
           $revision,
@@ -450,7 +450,7 @@ function _versioncontrol_git_parse_items($repository, &$logs, &$line, $revision,
     if (preg_match('/^(\S+)'."\t".'(\S+)'."\t".'(.+)$/', $line, $matches)) { // Begins with num lines added and matches expression.
       $read = TRUE;
       $path = '/'. $matches[3];
-      $op_items[$path] = new VersioncontrolItem(
+      $op_items[$path] = new VersioncontrolGitItem(
           VERSIONCONTROL_ITEM_FILE,
           $path,
           $revision,
