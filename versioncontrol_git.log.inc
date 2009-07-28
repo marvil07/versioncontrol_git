@@ -224,7 +224,7 @@ function _versioncontrol_git_log_parse_tag_info($repository, &$logs, $tag_commit
     $op = VersioncontrolOperation::getOperations($constraints);
     $op = array_pop($op);
     //FIXME get author/commiter
-    $o_operation = new VersioncontrolOperation(
+    $o_operation = new VersioncontrolGitOperation(
       VERSIONCONTROL_OPERATION_TAG,
       $op->author,
       $op->date+1, // We want to be displayed *after* the tagged commit.
@@ -257,7 +257,7 @@ function _versioncontrol_git_log_parse_tag_info($repository, &$logs, $tag_commit
   }
   $tagged_commit = $tag_commits[$tag_name];
   // By now, we're done with the parsing, construct the op array
-  $o_operation = new VersioncontrolOperation(
+  $o_operation = new VersioncontrolGitOperation(
     VERSIONCONTROL_OPERATION_TAG,
     $tagger,
     $date,
@@ -436,7 +436,7 @@ function _versioncontrol_git_get_source_item($repository, $filename, $parents, $
 
 function _versioncontrol_git_insert_commit($repository, $date, $username, $message, $revision, $branches, $op_items) {
   //FIXME: get author and commiter
-  $op = new VersioncontrolOperation(VERSIONCONTROL_OPERATION_COMMIT, $username, $date, $revision, $message, $username, $repository);
+  $op = new VersioncontrolGitOperation(VERSIONCONTROL_OPERATION_COMMIT, $username, $date, $revision, $message, $username, $repository);
   $op->labels = $branches;
   $op->insert($op_items);
 }

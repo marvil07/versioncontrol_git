@@ -14,10 +14,18 @@ class VersioncontrolGitBackend extends VersioncontrolBackend {
     );
     $this->classes = array(
       'repo' => 'VersioncontrolGitRepository',
+      'account' => 'VersioncontrolGitAccount',
+      'operation' => 'VersioncontrolGitOperation',
     );
   }
 
 }
 
 class VersioncontrolGitRepository extends VersioncontrolRepository {
+}
+
+class VersioncontrolGitAccount extends VersioncontrolAccount {
+}
+
+class VersioncontrolGitOperation extends VersioncontrolOperation {
 }
