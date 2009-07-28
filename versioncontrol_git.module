@@ -150,15 +150,6 @@ function versioncontrol_git_get_selected_label_from_other_item($repository, $tar
 }
 
 /**
- * Implementation of hook_account_username_suggestion().
- */
-function versioncontrol_git_account_username_suggestion($repository, $user) {
-  // @TODO: adjust later
-  // Use the kindof standard git identifier here, it's nothing too serious.
-  return $user->name ." <$user->mail>";
-}
-
-/**
  * Menu callback for 'admin/project/versioncontrol-repositories/clearlock/git'
  * (expecting a $repo_id as one more path argument):
  * Clears the update lock for the specified repository

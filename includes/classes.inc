@@ -57,6 +57,15 @@ class VersioncontrolGitAccount extends VersioncontrolAccount {
     return FALSE;
   }
 
+  /**
+   * Overwrite
+   */
+  public function usernameSuggestion($user) {
+    // @TODO: adjust later
+    // Use the kindof standard git identifier here, it's nothing too serious.
+    return $user->name ." <$user->mail>";
+  }
+
 }
 
 class VersioncontrolGitOperation extends VersioncontrolOperation {
