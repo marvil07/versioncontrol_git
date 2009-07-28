@@ -234,18 +234,3 @@ function _versioncontrol_git_update_repository(&$repository) {
   include_once(drupal_get_path('module', 'versioncontrol_git') .'/versioncontrol_git.log.inc');
   return _versioncontrol_git_log_update_repository($repository);
 }
-
-/**
- * Implementation of hook_format_revision_identifier().
- */
-function versioncontrol_git_format_revision_identifier($repository, $revision, $format = 'full') {
-  switch ($format) {
-    case 'short':
-        // Let's return only the first 7 characters of the revision identifier,
-        // like git log --abbrev-commit does by default.
-        return substr($revision, 0, 7);
-    case 'full':
-    default:
-      return $revision;
-  }
-}
