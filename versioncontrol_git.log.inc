@@ -458,7 +458,7 @@ function _versioncontrol_git_parse_items($repository, &$logs, &$line, $revision,
           ($merge ? VERSIONCONTROL_ACTION_MERGED : VERSIONCONTROL_ACTION_MODIFIED),
           $repository
       );
-      if (is_numeric($matches[1] && is_numeric($matches[2]))) {
+      if (is_numeric($matches[1]) && is_numeric($matches[2])) {
         $op_items[$path]->line_changes = array(
             'added' => $matches[1],
             'removed' => $matches[2]
