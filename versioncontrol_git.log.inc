@@ -67,7 +67,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
       // We get all commits we have in this branch to not process them later.
       $constraints['branches'] = array($branch_name);
       $latest_commit_date = 0;
-      $commit_op = VersioncontrolOperation::getOperations($constraints);
+      $commit_op = VersioncontrolOperationCache::getInstance()->getOperations($constraints);
       $latest_commit = FALSE;
       foreach ($commit_op as $vc_op_id => $c_op) {
         if ($latest_commit_date < $c_op['date']) {
@@ -105,7 +105,7 @@ function _versioncontrol_git_log_update_repository(&$repository) {
     'repo_ids' => array($repository->repo_id),
     'types' => array(VERSIONCONTROL_OPERATION_TAG)
   );
-  $existing_tag_ops = VersioncontrolOperation::getOperations($constraints);
+  $existing_tag_ops = VersioncontrolOperationCache::getInstance()->getOperations($constraints);
   $existing_tags = array();
   foreach ($existing_tag_ops as $tag_op) {
     if (!in_array($tag_op->labels[0]->name, $existing_tags)) {
@@ -221,7 +221,7 @@ function _versioncontrol_git_log_parse_tag_info($repository, &$logs, $tag_commit
       'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
       'revisions' => array($tagged_commit)
     );
-    $op = VersioncontrolOperation::getOperations($constraints);
+    $op = VersioncontrolOperationCache::getInstance()->getOperations($constraints);
     $op = array_pop($op);
     //FIXME get author/commiter
     $o_operation = new VersioncontrolGitOperation(
@@ -327,7 +327,7 @@ function _versioncontrol_git_process_tags($repository, $new_tags) {
       'types' => array(VERSIONCONTROL_OPERATION_COMMIT),
       'revisions' => array($tag_op->revision)
     );
-    $tag_commits = VersioncontrolOperation::getOperations($constraints);
+    $tag_commits = VersioncontrolOperationCache::getInstance()->getOperations($constraints);
     foreach ($tag_commits as $vc_op_id => $tag_commit_op) {
       $tag_commit_op->labels[] = new VersioncontrolTag(
         $tag_op['labels'][0]['name'],
@@ -506,7 +506,7 @@ function _versioncontrol_git_check_already_parsed_commits($repository, $revision
       'vcs' => array('git'),
       'repo_ids' => array($repository->repo_id)
   );
-  $same_rev_commit = VersioncontrolOperation::getOperations($constraints);
+  $same_rev_commit = VersioncontrolOperationCache::getInstance()->getOperations($constraints);
   $adjusted_commit = FALSE;
   foreach ($same_rev_commit as $vc_op_id => $rev_commit) {
     // We already have a commit with this revision recorded, so use a faster parser then.

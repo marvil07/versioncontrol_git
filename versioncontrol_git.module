@@ -88,17 +88,6 @@ function versioncontrol_git_cron() {
   }
 }
 
-/**
- * Implementation of hook_get_selected_label_from_operation().
- */
-function versioncontrol_git_get_selected_label_from_operation($operation, $target_item) {
-  // TODO: implement tag support here, tags>branch?
-  // better not, after looking it again current code is OK.
-  // just take the first branch, dunno what else we should do here...
-  // jpetso knows neither :P
-  return $operation['labels'][0];
-}
-
 function _versioncontrol_git_get_branch_intersect($repository, $item1, $item2) {
   $constraints = array(
     'revisions' => array($item1->revision, $item2->revision),
@@ -106,7 +95,7 @@ function _versioncontrol_git_get_branch_intersect($repository, $item1, $item2) {
     'repo_ids' => array($repository->repo_id),
     'types' => array(VERSIONCONTROL_OPERATION_COMMIT)
   );
-  $commit_ops = VersioncontrolOperation::getOperations($constraints);
+  $commit_ops = VersioncontrolOperationCache::getInstance()->getOperations($constraints);
   $branches1 = array();
   $branches2 = array();
   foreach ($commit_ops as $vc_op_id => $op) {
@@ -127,26 +116,6 @@ function _versioncontrol_git_get_branch_intersect($repository, $item1, $item2) {
     }
   }
   return array_pop($branches1); // We don't know any keys in $branches, so we use array_pop here. Also it'll return NULL if needed
-}
-
-/**
- * Implementation of hook_get_selected_label_from_other_item().
- */
-function versioncontrol_git_get_selected_label_from_other_item($repository, $target_item, &$other_item, $other_item_tags = array()) {
-  // First up, optimizations - maybe we can do without the generic
-  // "label transfer" code from further down and use assumptions instead.
-  // Let's assume for FakeVCS repositories that if an item wears a label, then
-  // an item at another path but with the same (file-level) revision can also
-  // wear that same label. That is the case with some version control systems
-  // (e.g. Git, Mercurial, Bazaar) but might not be the case with others
-  // (CVS for its lack of global revision identifiers, SVN for its use of
-  // directory structure as tag/branch identifiers).
-  if ($target_item['revision'] == $other_item['revision']) {
-    return versioncontrol_get_item_selected_label($repository, $other_item);
-  }
-
-  //can be maybe optimized for speed by using the hints provided
-  return _versioncontrol_git_get_branch_intersect($repository, $target_item, $other_item);
 }
 
 /**
